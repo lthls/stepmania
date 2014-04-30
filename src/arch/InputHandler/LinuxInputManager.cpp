@@ -36,6 +36,7 @@ LinuxInputManager::LinuxInputManager()
 	
 	m_EventDriver = NULL;
 	m_JoystickDriver = NULL;
+	m_NextDevice = DEVICE_JOY1;
 	
 	// XXX: Can I use RageFile for this?
 	DIR* sysClassInput = opendir("/sys/class/input");
@@ -96,6 +97,17 @@ void LinuxInputManager::InitDriver(InputHandler_Linux_Joystick* driver)
 	}
 	
 	m_vsPendingJoystickDevices.clear();
+}
+
+InputDevice LinuxInputManager::GetNextDevice()
+{
+	ASSERT(m_NextDevice < DEVICE_JOY1 + NUM_JOYSTICKS);
+	return m_NextDevice;
+}
+
+void LinuxInputManager::IncrNextDevice()
+{
+	m_NextDevice = enum_add2(m_NextDevice, 1);
 }
 
 LinuxInputManager* LINUXINPUT = NULL; // global and accessible anywhere in our program

@@ -266,7 +266,6 @@ EventDevice::~EventDevice()
 
 InputHandler_Linux_Event::InputHandler_Linux_Event()
 {
-	m_NextDevice = DEVICE_JOY1;
 	m_bDevicesChanged = false;
 
 	if(LINUXINPUT == NULL) LINUXINPUT = new LinuxInputManager;
@@ -303,7 +302,7 @@ void InputHandler_Linux_Event::StopThread()
 bool InputHandler_Linux_Event::TryDevice(RString devfile)
 {
 	EventDevice* pDev = new EventDevice;
-	if( pDev->Open(devfile, m_NextDevice) )
+	if( pDev->Open(devfile, LINUXINPUT->GetNextDevice()) )
 	{
 		bool hotplug = false;
 		if( m_InputThread.IsCreated() ) { StopThread(); hotplug = true; }
@@ -313,7 +312,7 @@ bool InputHandler_Linux_Event::TryDevice(RString devfile)
 		}
 		if( hotplug ) StartThread();
 		
-		m_NextDevice = enum_add2(m_NextDevice, 1);
+		LINUXINPUT->IncrNextDevice();
 		m_bDevicesChanged = true;
 		return true;
 	}

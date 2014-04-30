@@ -8,7 +8,6 @@
 class InputHandler_Linux_Joystick: public InputHandler
 {
 public:
-	enum { NUM_JOYSTICKS = 4 };
 	InputHandler_Linux_Joystick();
 	~InputHandler_Linux_Joystick();
 	bool TryDevice(RString dev);
@@ -22,6 +21,7 @@ private:
 	void InputThread();
 
 	int fds[NUM_JOYSTICKS];
+	InputDevice ids[NUM_JOYSTICKS];
 	int m_iLastFd;
 	RString m_sDescription[NUM_JOYSTICKS];
 	RageThread m_InputThread;

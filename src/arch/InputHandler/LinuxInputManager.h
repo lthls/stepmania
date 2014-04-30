@@ -5,6 +5,7 @@
 using namespace std;
 
 #include "global.h"
+#include "InputHandler.h"
 class InputHandler_Linux_Joystick;
 class InputHandler_Linux_Event;
 
@@ -17,6 +18,8 @@ public:
 	LinuxInputManager();
 	void InitDriver(InputHandler_Linux_Joystick* drv);
 	void InitDriver(InputHandler_Linux_Event* drv);
+	InputDevice GetNextDevice();
+	void IncrNextDevice();
 	~LinuxInputManager();
 private:
 	bool m_bEventEnabled;
@@ -26,6 +29,8 @@ private:
 	bool m_bJoystickEnabled;
 	InputHandler_Linux_Joystick* m_JoystickDriver;
 	vector<RString> m_vsPendingJoystickDevices;
+	
+	InputDevice m_NextDevice;
 };
 
 extern LinuxInputManager* LINUXINPUT; // global and accessible from anywhere in our program
