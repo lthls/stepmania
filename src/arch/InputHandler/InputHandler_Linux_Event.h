@@ -23,7 +23,6 @@ private:
 	void InputThread();
 
 	RageThread m_InputThread;
-	InputDevice m_NextDevice;
 	bool m_bShutdown, m_bDevicesChanged;
 };
 #define USE_INPUT_HANDLER_LINUX_JOYSTICK

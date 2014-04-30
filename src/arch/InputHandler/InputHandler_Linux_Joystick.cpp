@@ -84,6 +84,8 @@ bool InputHandler_Linux_Joystick::TryDevice(RString dev)
 				m_sDescription[m_iLastFd] = szName;
 
 			LOG->Info("LinuxJoystick: Opened %s", dev.c_str() );
+			ids[m_iLastFd] = LINUXINPUT->GetNextDevice();
+			LINUXINPUT->IncrNextDevice();
 			m_iLastFd++;
 			m_bDevicesChanged = true;
 			ret = true;
@@ -144,8 +146,6 @@ void InputHandler_Linux_Joystick::InputThread()
 				continue;
 			}
 
-			InputDevice id = InputDevice(DEVICE_JOY1 + i);
-
 			event.type &= ~JS_EVENT_INIT;
 			switch (event.type) {
 			case JS_EVENT_BUTTON: {
@@ -153,7 +153,7 @@ void InputHandler_Linux_Joystick::InputThread()
 				// In 2.6.11 using an EMS USB2, the event number for P1 Tri (the first button)
 				// is being reported as 32 instead of 0.  Correct for this.
 				wrap( iNum, 32 );	// max number of joystick buttons.  Make this a constant?
-				ButtonPressed( DeviceInput(id, enum_add2(JOY_BUTTON_1, iNum), event.value, now) );
+				ButtonPressed( DeviceInput(ids[i], enum_add2(JOY_BUTTON_1, iNum), event.value, now) );
 				break;
 			}
 
@@ -161,8 +161,8 @@ void InputHandler_Linux_Joystick::InputThread()
 				DeviceButton neg = enum_add2(JOY_LEFT, 2*event.number);
 				DeviceButton pos = enum_add2(JOY_RIGHT, 2*event.number);
                                 float l = SCALE( int(event.value), 0.0f, 32767, 0.0f, 1.0f );
-				ButtonPressed( DeviceInput(id, neg, max(-l,0), now) );
-				ButtonPressed( DeviceInput(id, pos, max(+l,0), now) );
+				ButtonPressed( DeviceInput(ids[i], neg, max(-l,0), now) );
+				ButtonPressed( DeviceInput(ids[i], pos, max(+l,0), now) );
 				break;
 			}
 
@@ -192,7 +192,7 @@ void InputHandler_Linux_Joystick::GetDevicesAndDescriptions( vector<InputDeviceI
 		if (fds[i] < 0)
 			continue;
 
-		vDevicesOut.push_back( InputDeviceInfo(InputDevice(DEVICE_JOY1+i), m_sDescription[i]) );
+		vDevicesOut.push_back( InputDeviceInfo(ids[i], m_sDescription[i]) );
 	}
 	m_bDevicesChanged = false;
 }
