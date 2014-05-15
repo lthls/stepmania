@@ -140,7 +140,6 @@ MovieDecoder_FFMpeg::~MovieDecoder_FFMpeg()
     {
         avcodec::av_free(m_buffer);
     }
-    avcodec::av_frame_free(&m_Frame);
 }
 
 void MovieDecoder_FFMpeg::Init()
