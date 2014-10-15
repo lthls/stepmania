@@ -10,7 +10,6 @@
 #include "RageTexture.h"
 #include "RageUtil.h"
 #include "ActorUtil.h"
-#include "arch/Dialog/Dialog.h"
 #include "Foreach.h"
 #include "LuaBinding.h"
 #include "LuaManager.h"
@@ -35,6 +34,17 @@ Sprite::Sprite()
 	m_fTexCoordVelocityY = 0;
 }
 
+// NoteSkinManager needs a sprite with a texture set to return in cases where
+// the noteskin doesn't return a valid actor.  I would really prefer to make
+// Sprite::Sprite load the default texture, but that causes problems for
+// banners on ScreenSelectMusic and videos on ScreenGameplay.  So rather than
+// dig through either of those, NoteSkinManager uses this special function.
+Sprite* Sprite::NewBlankSprite()
+{
+	Sprite* news= new Sprite;
+	news->Load(TEXTUREMAN->GetDefaultTextureID());
+	return news;
+}
 
 Sprite::~Sprite()
 {
@@ -176,7 +186,7 @@ void Sprite::LoadFromNode( const XNode* pNode )
 
 				pFrame->GetAttrValue( "Frame", iFrameIndex );
 				if( iFrameIndex >= m_pTexture->GetNumFrames() )
-					RageException::Throw( "%s: State #%i is frame %d, but the texture \"%s\" only has %d frames",
+					LuaHelpers::ReportScriptErrorFmt( "%s: State #%i is frame %d, but the texture \"%s\" only has %d frames",
 						ActorUtil::GetWhere(pNode).c_str(), i, iFrameIndex, sPath.c_str(), m_pTexture->GetNumFrames() );
 				newState.rect = *m_pTexture->GetTextureCoordRect( iFrameIndex );
 
@@ -211,7 +221,7 @@ void Sprite::LoadFromNode( const XNode* pNode )
 			if( !pNode->GetAttrValue(sFrameKey, iFrameIndex) )
 				break;
 			if( iFrameIndex >= m_pTexture->GetNumFrames() )
-				RageException::Throw( "%s: %s is %d, but the texture \"%s\" only has %d frames",
+				LuaHelpers::ReportScriptErrorFmt( "%s: %s is %d, but the texture \"%s\" only has %d frames",
 					ActorUtil::GetWhere(pNode).c_str(), sFrameKey.c_str(), iFrameIndex, sPath.c_str(), m_pTexture->GetNumFrames() );
 
 			newState.rect = *m_pTexture->GetTextureCoordRect( iFrameIndex );
@@ -743,7 +753,7 @@ void Sprite::SetState( int iNewState )
 			else
 				sError = ssprintf("A Sprite (\"%s\") tried to set state index %d, but no texture is loaded.", 
 					this->m_sName.c_str(), iNewState );
-			Dialog::OK( sError, "SPRITE_INVALID_FRAME" );
+			LuaHelpers::ReportScriptError(sError, "SPRITE_INVALID_FRAME");
 		}
 	}
 

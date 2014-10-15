@@ -20,7 +20,7 @@ void FixupPath( RString &path, const RString &sSongPath );
 RString GetSongAssetPath( RString sPath, const RString &sSongPath );
 
 /** @brief The version of the .ssc file format. */
-const static float STEPFILE_VERSION_NUMBER = 0.81f;
+const static float STEPFILE_VERSION_NUMBER = 0.82f;
 
 /** @brief How many edits for this song can each profile have? */
 const int MAX_EDITS_PER_SONG_PER_PROFILE = 15;
@@ -447,6 +447,8 @@ private:
 	vector<Steps*> m_vpSteps;
 	/** @brief the Steps of a particular StepsType that belong to this Song. */
 	vector<Steps*> m_vpStepsByType[NUM_StepsType];
+	/** @brief the Steps that are of unrecognized Styles. */
+	vector<Steps*> m_UnknownStyleSteps;
 };
 
 #endif

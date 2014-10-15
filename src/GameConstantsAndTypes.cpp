@@ -491,7 +491,16 @@ XToLocalizedString( CourseType );
 LuaXType( CourseType );
 LuaFunction( CourseTypeToLocalizedString, CourseTypeToLocalizedString( Enum::Check<CourseType>( L, 1 ) ) );
 
-
+static const char *FailTypeNames[] = {
+	"Immediate",
+	"ImmediateContinue",
+	"EndOfSong",
+	"Off",
+};
+XToString( FailType );
+XToLocalizedString( FailType );
+StringToX( FailType );
+LuaXType( FailType );
 
 /*
  * (c) 2001-2004 Chris Danford

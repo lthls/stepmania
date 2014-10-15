@@ -299,7 +299,8 @@ if LINUX
 		arch/InputHandler/InputHandler_Linux_PIUIO.cpp arch/InputHandler/InputHandler_Linux_PIUIO.h
   
   Lights += arch/Lights/LightsDriver_LinuxWeedTech.cpp arch/Lights/LightsDriver_LinuxWeedTech.h \
-		arch/Lights/LightsDriver_Linux_PIUIO.cpp arch/Lights/LightsDriver_Linux_PIUIO.h
+		arch/Lights/LightsDriver_Linux_PIUIO.cpp arch/Lights/LightsDriver_Linux_PIUIO.h \
+		arch/Lights/LightsDriver_Linux_PIUIO_Leds.cpp arch/Lights/LightsDriver_Linux_PIUIO_Leds.h
   
   MemoryCard += arch/MemoryCard/MemoryCardDriverThreaded_Linux.cpp arch/MemoryCard/MemoryCardDriverThreaded_Linux.h
   
@@ -399,6 +400,10 @@ if WINDOWS
 	
 if HAVE_PARALLEL_PORT
   Lights += arch/Lights/LightsDriver_Win32Parallel.cpp arch/Lights/LightsDriver_Win32Parallel.h
+endif
+
+if HAVE_MINIMAID
+  Lights += arch/Lights/LightsDriver_Win32Minimaid.cpp arch/Lights/LightsDriver_Win32Minimaid.h
 endif
  
 if !HAVE_PTHREAD
@@ -555,6 +560,7 @@ Actors = \
 Actor.cpp Actor.h ActorFrame.cpp ActorFrame.h \
 ActorFrameTexture.cpp ActorFrameTexture.h \
 ActorMultiTexture.cpp ActorMultiTexture.h \
+ActorMultiVertex.cpp ActorMultiVertex.h \
 ActorProxy.cpp ActorProxy.h \
 ActorScroller.cpp ActorScroller.h ActorUtil.cpp ActorUtil.h \
 ActorSound.cpp ActorSound.h \

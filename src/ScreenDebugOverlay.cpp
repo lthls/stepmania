@@ -548,6 +548,9 @@ static LocalizedString RELOAD			( "ScreenDebugOverlay", "Reload" );
 static LocalizedString RESTART			( "ScreenDebugOverlay", "Restart" );
 static LocalizedString SCREEN_ON		( "ScreenDebugOverlay", "Send On To Screen" );
 static LocalizedString SCREEN_OFF		( "ScreenDebugOverlay", "Send Off To Screen" );
+static LocalizedString RELOAD_OVERLAY_SCREENS( "ScreenDebugOverlay", "Reload Overlay Screens" );
+static LocalizedString TOGGLE_ERRORS( "ScreenDebugOverlay", "Toggle Errors" );
+static LocalizedString CLEAR_ERRORS( "ScreenDebugOverlay", "Clear Errors" );
 static LocalizedString RELOAD_THEME_AND_TEXTURES( "ScreenDebugOverlay", "Reload Theme and Textures" );
 static LocalizedString WRITE_PROFILES	( "ScreenDebugOverlay", "Write Profiles" );
 static LocalizedString WRITE_PREFERENCES	( "ScreenDebugOverlay", "Write Preferences" );
@@ -647,28 +650,28 @@ class DebugLineAutosync : public IDebugLine
 	virtual RString GetDisplayTitle() { return AUTOSYNC.GetValue(); }
 	virtual RString GetDisplayValue()
 	{ 
-		SongOptions::AutosyncType type = GAMESTATE->m_SongOptions.GetSong().m_AutosyncType;
+		AutosyncType type = GAMESTATE->m_SongOptions.GetSong().m_AutosyncType;
 		switch( type )
 		{
-		case SongOptions::AUTOSYNC_OFF: 	return OFF.GetValue();  		break;
-		case SongOptions::AUTOSYNC_SONG:	return SONG.GetValue(); 		break;
-		case SongOptions::AUTOSYNC_MACHINE:	return MACHINE.GetValue(); 		break;
-		case SongOptions::AUTOSYNC_TEMPO:	return SYNC_TEMPO.GetValue();		break;
+		case AutosyncType_Off: 	return OFF.GetValue();  		break;
+		case AutosyncType_Song:	return SONG.GetValue(); 		break;
+		case AutosyncType_Machine:	return MACHINE.GetValue(); 		break;
+		case AutosyncType_Tempo:	return SYNC_TEMPO.GetValue();		break;
 		default:
 			FAIL_M(ssprintf("Invalid autosync type: %i", type));
 		}
 	}
 	virtual Type GetType() const { return IDebugLine::gameplay_only; }
-	virtual bool IsEnabled() { return GAMESTATE->m_SongOptions.GetSong().m_AutosyncType!=SongOptions::AUTOSYNC_OFF; }
+	virtual bool IsEnabled() { return GAMESTATE->m_SongOptions.GetSong().m_AutosyncType!=AutosyncType_Off; }
 	virtual void DoAndLog( RString &sMessageOut )
 	{
 		int as = GAMESTATE->m_SongOptions.GetSong().m_AutosyncType + 1;
 		bool bAllowSongAutosync = !GAMESTATE->IsCourseMode();
 		if( !bAllowSongAutosync  && 
-		  ( as == SongOptions::AUTOSYNC_SONG || as == SongOptions::AUTOSYNC_TEMPO ) )
-			as = SongOptions::AUTOSYNC_MACHINE;
-		wrap( as, SongOptions::NUM_AUTOSYNC_TYPES );
-		SO_GROUP_ASSIGN( GAMESTATE->m_SongOptions, ModsLevel_Song, m_AutosyncType, SongOptions::AutosyncType(as) );
+		  ( as == AutosyncType_Song || as == AutosyncType_Tempo ) )
+			as = AutosyncType_Machine;
+		wrap( as, NUM_AutosyncType );
+		SO_GROUP_ASSIGN( GAMESTATE->m_SongOptions, ModsLevel_Song, m_AutosyncType, AutosyncType(as) );
 		MESSAGEMAN->Broadcast( Message_AutosyncChanged );
 		IDebugLine::DoAndLog( sMessageOut );
 	}
@@ -862,7 +865,9 @@ static HighScore MakeRandomHighScore( float fPercentDP )
 		hs.SetHoldNoteScore( hns, RandomInt(100) );
 	RadarValues rv;
 	FOREACH_ENUM( RadarCategory, rc )
-		rv.m_Values.f[rc] = randomf( 0, 1 );
+	{
+		rv[rc] = randomf( 0, 1 );
+	}
 	hs.SetRadarValues( rv );
 
 	return hs;
@@ -1027,6 +1032,47 @@ class DebugLineReloadTheme : public IDebugLine
 		// HACK: Don't update text below. Return immediately because this screen
 		// was just destroyed as part of the theme reload.
 		IDebugLine::DoAndLog( sMessageOut );
+	}
+};
+
+class DebugLineReloadOverlayScreens : public IDebugLine
+{
+	virtual RString GetDisplayTitle() { return RELOAD_OVERLAY_SCREENS.GetValue(); }
+	virtual RString GetDisplayValue() { return RString(); }
+	virtual bool IsEnabled() { return true; }
+	virtual RString GetPageName() const { return "Theme"; }
+	virtual void DoAndLog( RString &sMessageOut )
+	{
+		SCREENMAN->ReloadOverlayScreensAfterInputFinishes();
+		IDebugLine::DoAndLog(sMessageOut);
+	}
+};
+
+class DebugLineToggleErrors : public IDebugLine
+{
+	virtual RString GetDisplayTitle() { return TOGGLE_ERRORS.GetValue(); }
+	virtual RString GetDisplayValue() { return RString(); }
+	virtual bool IsEnabled() { return true; }
+	virtual RString GetPageName() const { return "Theme"; }
+	virtual void DoAndLog( RString &sMessageOut )
+	{
+		Message msg("ToggleScriptError");
+		MESSAGEMAN->Broadcast(msg);
+		IDebugLine::DoAndLog(sMessageOut);
+	}
+};
+
+class DebugLineClearErrors : public IDebugLine
+{
+	virtual RString GetDisplayTitle() { return CLEAR_ERRORS.GetValue(); }
+	virtual RString GetDisplayValue() { return RString(); }
+	virtual bool IsEnabled() { return true; }
+	virtual RString GetPageName() const { return "Theme"; }
+	virtual void DoAndLog( RString &sMessageOut )
+	{
+		Message msg("ClearScriptError");
+		MESSAGEMAN->Broadcast(msg);
+		IDebugLine::DoAndLog(sMessageOut);
 	}
 };
 
@@ -1212,6 +1258,9 @@ DECLARE_ONE( DebugLineRestartCurrentScreen );
 DECLARE_ONE( DebugLineCurrentScreenOn );
 DECLARE_ONE( DebugLineCurrentScreenOff );
 DECLARE_ONE( DebugLineReloadTheme );
+DECLARE_ONE( DebugLineReloadOverlayScreens );
+DECLARE_ONE( DebugLineToggleErrors );
+DECLARE_ONE( DebugLineClearErrors );
 DECLARE_ONE( DebugLineWriteProfiles );
 DECLARE_ONE( DebugLineWritePreferences );
 DECLARE_ONE( DebugLineMenuTimer );

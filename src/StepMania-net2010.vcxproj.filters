@@ -747,6 +747,9 @@
     <ClCompile Include="arch\Lights\LightsDriver_SystemMessage.cpp">
       <Filter>StepMania\arch\Lights</Filter>
     </ClCompile>
+    <ClCompile Include="arch\Lights\LightsDriver_Win32Minimaid.cpp">
+      <Filter>StepMania\arch\Lights</Filter>
+    </ClCompile>
     <ClCompile Include="arch\Lights\LightsDriver_Win32Parallel.cpp">
       <Filter>StepMania\arch\Lights</Filter>
     </ClCompile>
@@ -1249,6 +1252,9 @@
       <Filter>Actors</Filter>
     </ClCompile>
     <ClCompile Include="ActorMultiTexture.cpp">
+      <Filter>Actors</Filter>
+    </ClCompile>
+    <ClCompile Include="ActorMultiVertex.cpp">
       <Filter>Actors</Filter>
     </ClCompile>
     <ClCompile Include="ActorProxy.cpp">
@@ -2267,6 +2273,9 @@
     <ClInclude Include="arch\Lights\LightsDriver_SystemMessage.h">
       <Filter>StepMania\arch\Lights</Filter>
     </ClInclude>
+    <ClInclude Include="arch\Lights\LightsDriver_Win32Minimaid.h">
+      <Filter>StepMania\arch\Lights</Filter>
+    </ClInclude>
     <ClInclude Include="arch\Lights\LightsDriver_Win32Parallel.h">
       <Filter>StepMania\arch\Lights</Filter>
     </ClInclude>
@@ -2781,6 +2790,9 @@
       <Filter>Actors</Filter>
     </ClInclude>
     <ClInclude Include="ActorMultiTexture.h">
+      <Filter>Actors</Filter>
+    </ClInclude>
+    <ClInclude Include="ActorMultiVertex.h">
       <Filter>Actors</Filter>
     </ClInclude>
     <ClInclude Include="ActorProxy.h">

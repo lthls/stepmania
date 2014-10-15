@@ -2,12 +2,11 @@
 #include "EnumHelper.h"
 #include "LuaManager.h"
 #include "RageUtil.h"
+#include "RageLog.h"
 
-int CheckEnum( lua_State *L, LuaReference &table, int iPos, int iInvalid, const char *szType, bool bAllowInvalid )
+int CheckEnum( lua_State *L, LuaReference &table, int iPos, int iInvalid, const char *szType, bool bAllowInvalid, bool bAllowAnything )
 {
-	luaL_checkany( L, iPos );
-
-	if( lua_isnil(L, iPos) )
+	if( lua_isnoneornil(L, iPos) )
 	{
 		if( bAllowInvalid )
 			return iInvalid;
@@ -61,6 +60,18 @@ int CheckEnum( lua_State *L, LuaReference &table, int iPos, int iInvalid, const 
 			LuaHelpers::Pop( L, sGot );
 		}
 		LuaHelpers::Push( L, ssprintf("Expected %s; got %s", szType, sGot.c_str() ) );
+		// There are a couple places where CheckEnum is used outside of a
+		// function called from lua.  If we use lua_error from one of them,
+		// StepMania crashes out completely.  bAllowAnything allows those places
+		// to avoid crashing over theme mistakes.
+		if(bAllowAnything)
+		{
+			RString errmsg;
+			LuaHelpers::Pop(L, errmsg);
+			LuaHelpers::ReportScriptError(errmsg);
+			lua_pop(L, 2);
+			return iInvalid;
+		}
 		lua_error( L );
 	}
 	int iRet = lua_tointeger( L, -1 );

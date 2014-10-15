@@ -606,6 +606,7 @@ cl /Zl /nologo /c verstub.cpp /Fo"$(IntDir)"</Command>
     <ClCompile Include="arch\Lights\LightsDriver.cpp" />
     <ClCompile Include="arch\Lights\LightsDriver_Export.cpp" />
     <ClCompile Include="arch\Lights\LightsDriver_SystemMessage.cpp" />
+    <ClCompile Include="arch\Lights\LightsDriver_Win32Minimaid.cpp" />
     <ClCompile Include="arch\Lights\LightsDriver_Win32Parallel.cpp" />
     <ClCompile Include="archutils\Win32\AppInstance.cpp" />
     <ClCompile Include="archutils\Win32\arch_setup.cpp" />
@@ -774,6 +775,7 @@ cl /Zl /nologo /c verstub.cpp /Fo"$(IntDir)"</Command>
     <ClCompile Include="ActorFrame.cpp" />
     <ClCompile Include="ActorFrameTexture.cpp" />
     <ClCompile Include="ActorMultiTexture.cpp" />
+    <ClCompile Include="ActorMultiVertex.cpp" />
     <ClCompile Include="ActorProxy.cpp" />
     <ClCompile Include="ActorScroller.cpp" />
     <ClCompile Include="ActorSound.cpp" />
@@ -1483,6 +1485,7 @@ cl /Zl /nologo /c verstub.cpp /Fo"$(IntDir)"</Command>
     <ClInclude Include="arch\Lights\LightsDriver.h" />
     <ClInclude Include="arch\Lights\LightsDriver_Export.h" />
     <ClInclude Include="arch\Lights\LightsDriver_SystemMessage.h" />
+    <ClInclude Include="arch\Lights\LightsDriver_Win32Minimaid.h" />
     <ClInclude Include="arch\Lights\LightsDriver_Win32Parallel.h" />
     <ClInclude Include="archutils\Win32\AppInstance.h" />
     <ClInclude Include="archutils\Win32\arch_setup.h" />
@@ -1655,6 +1658,7 @@ cl /Zl /nologo /c verstub.cpp /Fo"$(IntDir)"</Command>
     <ClInclude Include="ActorFrame.h" />
     <ClInclude Include="ActorFrameTexture.h" />
     <ClInclude Include="ActorMultiTexture.h" />
+    <ClInclude Include="ActorMultiVertex.h" />
     <ClInclude Include="ActorProxy.h" />
     <ClInclude Include="ActorScroller.h" />
     <ClInclude Include="ActorSound.h" />

@@ -40,7 +40,7 @@ void ActorUtil::Register( const RString& sClassName, CreateActorFn pfn )
 /* Resolves actor paths a la LoadActor("..."), with autowildcarding and .redir
  * files.  Returns a path *within* the Rage filesystem, unlike the FILEMAN
  * function of the same name. */
-bool ActorUtil::ResolvePath( RString &sPath, const RString &sName )
+bool ActorUtil::ResolvePath( RString &sPath, const RString &sName, bool optional )
 {
 	CollapsePath( sPath );
 
@@ -54,8 +54,12 @@ bool ActorUtil::ResolvePath( RString &sPath, const RString &sName )
 
 		if( asPaths.empty() )
 		{
+			if(optional)
+			{
+				return false;
+			}
 			RString sError = ssprintf( "%s: references a file \"%s\" which doesn't exist", sName.c_str(), sPath.c_str() );
-			switch( Dialog::AbortRetryIgnore( sError, "BROKEN_FILE_REFERENCE" ) )
+			switch(LuaHelpers::ReportScriptError(sError, "BROKEN_FILE_REFERENCE", true))
 			{
 			case Dialog::abort:
 				RageException::Throw( "%s", sError.c_str() ); 
@@ -76,7 +80,7 @@ bool ActorUtil::ResolvePath( RString &sPath, const RString &sName )
 		{
 			RString sError = ssprintf( "%s: references a file \"%s\" which has multiple matches", sName.c_str(), sPath.c_str() );
 			sError += "\n" + join( "\n", asPaths );
-			switch( Dialog::AbortRetryIgnore( sError, "BROKEN_FILE_REFERENCE" ) )
+			switch(LuaHelpers::ReportScriptError(sError, "BROKEN_FILE_REFERENCE", true))
 			{
 			case Dialog::abort:
 				RageException::Throw( "%s", sError.c_str() ); 
@@ -217,7 +221,7 @@ Actor *ActorUtil::LoadFromNode( const XNode* _pNode, Actor *pParentActor )
 		// sClass is invalid
 		RString sError = ssprintf( "%s: invalid Class \"%s\"",
 			ActorUtil::GetWhere(&node).c_str(), sClass.c_str() );
-		Dialog::OK( sError );
+		LuaHelpers::ReportScriptError(sError);
 		return new Actor;	// Return a dummy object so that we don't crash in AutoActor later.
 	}
 
@@ -246,7 +250,7 @@ namespace
 		{
 			LUA->Release( L );
 			sError = ssprintf( "Lua runtime error: %s", sError.c_str() );
-			Dialog::OK( sError, "LUA_ERROR" );
+			LuaHelpers::ReportScriptError(sError);
 			return NULL;
 		}
 
@@ -268,12 +272,10 @@ bool ActorUtil::LoadTableFromStackShowErrors( Lua *L )
 	lua_pushvalue( L, -1 );
 	func.SetFromStack( L );
 
-	RString sError;
-	if( !LuaHelpers::RunScriptOnStack(L, sError, 0, 1) )
+	RString Error= "Lua runtime error: ";
+	if( !LuaHelpers::RunScriptOnStack(L, Error, 0, 1, true) )
 	{
 		lua_pop( L, 1 );
-		sError = ssprintf( "Lua runtime error: %s", sError.c_str() );
-		Dialog::OK( sError, "LUA_ERROR" );
 		return false;
 	}
 
@@ -285,9 +287,9 @@ bool ActorUtil::LoadTableFromStackShowErrors( Lua *L )
 		lua_Debug debug;
 		lua_getinfo( L, ">nS", &debug );
 
-		sError = ssprintf( "%s: must return a table", debug.short_src );
+		Error = ssprintf( "%s: must return a table", debug.short_src );
 
-		Dialog::OK( sError, "LUA_ERROR" );
+		LuaHelpers::ReportScriptError(Error, "LUA_ERROR");
 		return false;
 	}
 	return true;
@@ -404,7 +406,7 @@ RString ActorUtil::GetWhere( const XNode *pNode )
 	return sPath;
 }
 
-bool ActorUtil::GetAttrPath( const XNode *pNode, const RString &sName, RString &sOut )
+bool ActorUtil::GetAttrPath( const XNode *pNode, const RString &sName, RString &sOut, bool optional )
 {
 	if( !pNode->GetAttrValue(sName, sOut) )
 		return false;
@@ -415,13 +417,16 @@ bool ActorUtil::GetAttrPath( const XNode *pNode, const RString &sName, RString &
 		RString sDir;
 		if( !pNode->GetAttrValue("_Dir", sDir) )
 		{
-			LOG->Warn( "Relative path \"%s\", but path is unknown", sOut.c_str() );
+			if(!optional)
+			{
+				LOG->Warn( "Relative path \"%s\", but path is unknown", sOut.c_str() );
+			}
 			return false;
 		}
 		sOut = sDir+sOut;
 	}
 
-	return ActorUtil::ResolvePath( sOut, ActorUtil::GetWhere(pNode) );
+	return ActorUtil::ResolvePath( sOut, ActorUtil::GetWhere(pNode), optional );
 }
 
 apActorCommands ActorUtil::ParseActorCommands( const RString &sCommands, const RString &sName )

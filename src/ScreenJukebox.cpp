@@ -197,8 +197,8 @@ void ScreenJukebox::Init()
 			PO_GROUP_ASSIGN( GAMESTATE->m_pPlayerState[p]->m_PlayerOptions, ModsLevel_Stage, m_fScrollSpeed, .25f );
 			PO_GROUP_ASSIGN( GAMESTATE->m_pPlayerState[p]->m_PlayerOptions, ModsLevel_Stage, m_fPerspectiveTilt, -1.0f );
 			PO_GROUP_ASSIGN_N( GAMESTATE->m_pPlayerState[p]->m_PlayerOptions, ModsLevel_Stage, m_fEffects, PlayerOptions::EFFECT_TINY, 1.0f );
+			PO_GROUP_ASSIGN( GAMESTATE->m_pPlayerState[p]->m_PlayerOptions, ModsLevel_Stage, m_LifeType, LifeType_Battery );
 		}
-		SO_GROUP_ASSIGN( GAMESTATE->m_SongOptions, ModsLevel_Stage, m_LifeType, SongOptions::LIFE_BATTERY );
 	}
 
 	FOREACH_EnabledPlayer( p )
@@ -221,7 +221,7 @@ void ScreenJukebox::Init()
 	GAMESTATE->m_SongOptions.Assign( ModsLevel_Stage, so );
 
 	FOREACH_EnabledPlayer( p )
-		PO_GROUP_ASSIGN( GAMESTATE->m_pPlayerState[p]->m_PlayerOptions, ModsLevel_Stage, m_FailType, PlayerOptions::FAIL_OFF );
+		PO_GROUP_ASSIGN( GAMESTATE->m_pPlayerState[p]->m_PlayerOptions, ModsLevel_Stage, m_FailType, FailType_Off );
 
 	GAMESTATE->m_bDemonstrationOrJukebox = true;
 

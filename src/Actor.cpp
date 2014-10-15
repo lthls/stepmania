@@ -4,7 +4,6 @@
 #include "RageUtil.h"
 #include "RageMath.h"
 #include "RageLog.h"
-#include "arch/Dialog/Dialog.h"
 #include "Foreach.h"
 #include "XmlFile.h"
 #include "LuaBinding.h"
@@ -289,7 +288,7 @@ void Actor::Draw()
 	
 	this->PreDraw();
 	ASSERT( m_pTempState != NULL );
-	if( m_pTempState->diffuse[0].a != 0 || m_pTempState->diffuse[1].a != 0 || m_pTempState->diffuse[2].a != 0 || m_pTempState->diffuse[3].a != 0 || m_pTempState->glow.a != 0 ) // This Actor is not fully transparent
+	if( m_pTempState->diffuse[0].a > 0 || m_pTempState->diffuse[1].a > 0 || m_pTempState->diffuse[2].a > 0 || m_pTempState->diffuse[3].a > 0 || m_pTempState->glow.a > 0 ) // This Actor is not fully transparent
 	{	
 		// call the most-derived versions
 		this->BeginDraw();	
@@ -297,7 +296,14 @@ void Actor::Draw()
 		this->EndDraw();
 	}
 	
+	this->PostDraw();
 	m_pTempState = NULL;
+}
+
+void Actor::PostDraw() // reset internal diffuse and glow
+{
+	m_internalDiffuse = RageColor(1, 1, 1, 1);
+	m_internalGlow.a = 0;
 }
 
 void Actor::PreDraw() // calculate actor properties
@@ -469,7 +475,6 @@ void Actor::PreDraw() // calculate actor properties
 		{
 			tempState.diffuse[i] *= m_internalDiffuse;
 		}
-		m_internalDiffuse = RageColor(1, 1, 1, 1);
 	}
 
 	if( m_internalGlow.a > 0 )
@@ -482,10 +487,9 @@ void Actor::PreDraw() // calculate actor properties
 
 		// Blend using Screen mode
 		tempState.glow = tempState.glow + m_internalGlow - m_internalGlow * tempState.glow;
-		m_internalGlow.a = 0;
 	}
 }
-	
+
 void Actor::BeginDraw() // set the world matrix
 {
 	DISPLAY->PushMatrix();
@@ -793,10 +797,7 @@ void Actor::BeginTweening( float time, ITween *pTween )
 	// recursing ActorCommand.
 	if( m_Tweens.size() > 50 )
 	{
-		RString sError = ssprintf( "Tween overflow: \"%s\"; infinitely recursing ActorCommand?", GetLineage().c_str() );
-
-		LOG->Warn( "%s", sError.c_str() );
-		Dialog::OK( sError );
+		LuaHelpers::ReportScriptErrorFmt("Tween overflow: \"%s\"; infinitely recursing ActorCommand?", GetLineage().c_str());
 		this->FinishTweening();
 	}
 
@@ -1129,7 +1130,7 @@ void Actor::RunCommands( const LuaReference& cmds, const LuaReference *pParamTab
 {
 	if( !cmds.IsSet() || cmds.IsNil() )
 	{
-		LOG->Warn( "RunCommands: command is unset or nil" );
+		LuaHelpers::ReportScriptError("RunCommands: command is unset or nil");
 		return;
 	}
 
@@ -1139,7 +1140,7 @@ void Actor::RunCommands( const LuaReference& cmds, const LuaReference *pParamTab
 	cmds.PushSelf( L );
 	if( lua_isnil(L, -1) )
 	{
-		LOG->Warn("Error compiling commands");
+		LuaHelpers::ReportScriptError("Error compiling commands");
 		LUA->Release(L);
 		return;
 	}
@@ -1154,9 +1155,8 @@ void Actor::RunCommands( const LuaReference& cmds, const LuaReference *pParamTab
 		pParamTable->PushSelf( L );
 
 	// call function with 2 arguments and 0 results
-	RString sError;
-	if( !LuaHelpers::RunScriptOnStack(L, sError, 2, 0) )
-		LOG->Warn( "Error playing command: %s", sError.c_str() );
+	RString Error= "Error playing command: ";
+	LuaHelpers::RunScriptOnStack(L, Error, 2, 0, true);
 
 	LUA->Release(L);
 }
@@ -1301,7 +1301,7 @@ void Actor::AddCommand( const RString &sCmdName, apActorCommands apac )
 	if( HasCommand(sCmdName) )
 	{
 		RString sWarning = GetLineage()+"'s command '"+sCmdName+"' defined twice";
-		Dialog::OK( sWarning, "COMMAND_DEFINED_TWICE" );
+		LuaHelpers::ReportScriptError(sWarning, "COMMAND_DEFINED_TWICE");
 	}
 
 	RString sMessage;
@@ -1404,7 +1404,7 @@ public:
 		float fTime = FArg(1);
 		if (fTime < 0)
 		{
-			LOG->Warn("Lua: sleep(%f): time must not be negative", fTime);
+			LuaHelpers::ReportScriptErrorFmt("Lua: sleep(%f): time must not be negative", fTime);
 			return 0;
 		}
 		p->Sleep(fTime);
@@ -1415,7 +1415,7 @@ public:
 		float fTime = FArg(1);
 		if (fTime < 0)
 		{
-			LOG->Warn("Lua: linear(%f): tween time must not be negative", fTime);
+			LuaHelpers::ReportScriptErrorFmt("Lua: linear(%f): tween time must not be negative", fTime);
 			return 0;
 		}
 		p->BeginTweening(fTime, TWEEN_LINEAR);
@@ -1426,7 +1426,7 @@ public:
 		float fTime = FArg(1);
 		if (fTime < 0)
 		{
-			LOG->Warn("Lua: accelerate(%f): tween time must not be negative", fTime);
+			LuaHelpers::ReportScriptErrorFmt("Lua: accelerate(%f): tween time must not be negative", fTime);
 			return 0;
 		}
 		p->BeginTweening(fTime, TWEEN_ACCELERATE);
@@ -1437,7 +1437,7 @@ public:
 		float fTime = FArg(1);
 		if (fTime < 0)
 		{
-			LOG->Warn("Lua: decelerate(%f): tween time must not be negative", fTime);
+			LuaHelpers::ReportScriptErrorFmt("Lua: decelerate(%f): tween time must not be negative", fTime);
 			return 0;
 		}
 		p->BeginTweening(fTime, TWEEN_DECELERATE);
@@ -1448,7 +1448,7 @@ public:
 		float fTime = FArg(1);
 		if (fTime < 0)
 		{
-			LOG->Warn("Lua: spring(%f): tween time must not be negative", fTime);
+			LuaHelpers::ReportScriptErrorFmt("Lua: spring(%f): tween time must not be negative", fTime);
 			return 0;
 		}
 		p->BeginTweening(fTime, TWEEN_SPRING);
@@ -1459,11 +1459,14 @@ public:
 		float fTime = FArg(1);
 		if (fTime < 0)
 		{
-			LOG->Warn("Lua: tween(%f): tween time must not be negative", fTime);
+			LuaHelpers::ReportScriptErrorFmt("Lua: tween(%f): tween time must not be negative", fTime);
 			return 0;
 		}
 		ITween *pTween = ITween::CreateFromStack( L, 2 );
-		p->BeginTweening(fTime, pTween);
+		if(pTween != NULL)
+		{
+			p->BeginTweening(fTime, pTween);
+		}
 		return 0;
 	}
 	static int stoptweening( T* p, lua_State * )		{ p->StopTweening(); return 0; }
@@ -1559,7 +1562,7 @@ public:
 		float fPeriod = FArg(1);
 		if (fPeriod <= 0)
 		{
-			LOG->Warn("Effect period (%f) must be positive; ignoring", fPeriod);
+			LuaHelpers::ReportScriptErrorFmt("Effect period (%f) must be positive; ignoring", fPeriod);
 			return 0;
 		}
 		p->SetEffectPeriod(FArg(1));
@@ -1570,13 +1573,13 @@ public:
 		float f1 = FArg(1), f2 = FArg(2), f3 = FArg(3), f4 = FArg(4);
 		if (f1 < 0 || f2 < 0 || f3 < 0 || f4 < 0)
 		{
-			LOG->Warn("Effect timings (%f,%f,%f,%f) must not be negative; ignoring",
+			LuaHelpers::ReportScriptErrorFmt("Effect timings (%f,%f,%f,%f) must not be negative; ignoring",
 					f1, f2, f3, f4);
 			return 0;
 		}
 		if (f1 == 0 && f2 == 0 && f3 == 0 && f4 == 0)
 		{
-			LOG->Warn("Effect timings (0,0,0,0) must not all be zero; ignoring");
+			LuaHelpers::ReportScriptErrorFmt("Effect timings (0,0,0,0) must not all be zero; ignoring");
 			return 0;
 		}
 		p->SetEffectTiming(FArg(1), FArg(2), FArg(3), FArg(4));
@@ -1662,6 +1665,9 @@ public:
 	static int GetX( T* p, lua_State *L )			{ lua_pushnumber( L, p->GetX() ); return 1; }
 	static int GetY( T* p, lua_State *L )			{ lua_pushnumber( L, p->GetY() ); return 1; }
 	static int GetZ( T* p, lua_State *L )			{ lua_pushnumber( L, p->GetZ() ); return 1; }
+	static int GetDestX( T* p, lua_State *L )		{ lua_pushnumber( L, p->GetDestX() ); return 1; }
+	static int GetDestY( T* p, lua_State *L )		{ lua_pushnumber( L, p->GetDestY() ); return 1; }
+	static int GetDestZ( T* p, lua_State *L )		{ lua_pushnumber( L, p->GetDestZ() ); return 1; }
 	static int GetWidth( T* p, lua_State *L )		{ lua_pushnumber( L, p->GetUnzoomedWidth() ); return 1; }
 	static int GetHeight( T* p, lua_State *L )		{ lua_pushnumber( L, p->GetUnzoomedHeight() ); return 1; }
 	static int GetZoomedWidth( T* p, lua_State *L )		{ lua_pushnumber( L, p->GetZoomedWidth() ); return 1; }
@@ -1838,6 +1844,9 @@ public:
 		ADD_METHOD( GetX );
 		ADD_METHOD( GetY );
 		ADD_METHOD( GetZ );
+		ADD_METHOD( GetDestX );
+		ADD_METHOD( GetDestY );
+		ADD_METHOD( GetDestZ );
 		ADD_METHOD( GetWidth );
 		ADD_METHOD( GetHeight );
 		ADD_METHOD( GetZoomedWidth );

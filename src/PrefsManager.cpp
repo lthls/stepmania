@@ -125,16 +125,16 @@ XToString( CourseSortOrders );
 StringToX( CourseSortOrders );
 LuaXType( CourseSortOrders );
 
-// XXX: Fix fail bug?
-/* static const char *DefaultFailTypeNames[] = {
-	"Immediate",
-	"ImmediateContinue",
-	"EndOfSong",
-	"Off",
+static const char *BackgroundFitModeNames[] = {
+	"CoverDistort",
+	"CoverPreserve",
+	"FitInside",
+	"FitInsideAvoidLetter",
+	"FitInsideAvoidPillar",
 };
-XToString( DefaultFailType );
-StringToX( DefaultFailType );
-LuaXType( DefaultFailType ); */
+XToString( BackgroundFitMode );
+StringToX( BackgroundFitMode );
+LuaXType( BackgroundFitMode );
 
 bool g_bAutoRestart = false;
 #ifdef DEBUG
@@ -169,10 +169,11 @@ PrefsManager::PrefsManager() :
 	m_iDisplayWidth		( "DisplayWidth",		854 ),
 	m_iDisplayHeight	( "DisplayHeight",		480 ),
 	m_fDisplayAspectRatio	( "DisplayAspectRatio",		16/9.f, ValidateDisplayAspectRatio ),
-	m_iDisplayColorDepth	( "DisplayColorDepth",		16 ),
-	m_iTextureColorDepth	( "TextureColorDepth",		16 ),
-	m_iMovieColorDepth	( "MovieColorDepth",		16 ),
+	m_iDisplayColorDepth	( "DisplayColorDepth",		32 ),
+	m_iTextureColorDepth	( "TextureColorDepth",		32 ),
+	m_iMovieColorDepth	( "MovieColorDepth",		32 ),
 	m_bStretchBackgrounds	( "StretchBackgrounds",		false ),
+	m_BGFitMode("BackgroundFitMode", BFM_CoverPreserve),
 	m_HighResolutionTextures	( "HighResolutionTextures",	HighResolutionTextures_Auto ),
 	m_iMaxTextureResolution	( "MaxTextureResolution",	2048 ),
 	m_iRefreshRate		( "RefreshRate",		REFRESH_DEFAULT ),
@@ -183,6 +184,7 @@ PrefsManager::PrefsManager() :
 
 	m_bHiddenSongs		( "HiddenSongs",		false ),
 	m_bVsync		( "Vsync",			true ),
+	m_FastNoteRendering("FastNoteRendering", false),
 	m_bInterlaced		( "Interlaced",			false ),
 	m_bPAL			( "PAL",			false ),
 	m_bDelayedTextureDelete	( "DelayedTextureDelete",	false ),
@@ -210,6 +212,7 @@ PrefsManager::PrefsManager() :
 	m_bShowCaution			( "ShowCaution",		true ),
 	m_bShowNativeLanguage		( "ShowNativeLanguage",		true ),
 	m_iArcadeOptionsNavigation	( "ArcadeOptionsNavigation",	0 ),
+	m_ThreeKeyNavigation("ThreeKeyNavigation", false),
 	m_MusicWheelUsesSections	( "MusicWheelUsesSections",	MusicWheelUsesSections_ALWAYS ),
 	m_iMusicWheelSwitchSpeed	( "MusicWheelSwitchSpeed",	15 ),
 	m_AllowW1			( "AllowW1",			ALLOW_W1_EVERYWHERE ),
@@ -251,6 +254,7 @@ PrefsManager::PrefsManager() :
 	m_bAllowMultipleHighScoreWithSameName	( "AllowMultipleHighScoreWithSameName",	true ),
 	m_bCelShadeModels		( "CelShadeModels",			false ),	// Work-In-Progress.. disable by default.
 	m_bPreferredSortUsesGroups	( "PreferredSortUsesGroups",		true ),
+	m_fDebounceCoinInputTime	( "DebounceCoinInputTime",		0 ),
 
 	m_fPadStickSeconds		( "PadStickSeconds",			0 ),
 	m_bForceMipMaps			( "ForceMipMaps",			false ),
@@ -282,6 +286,7 @@ PrefsManager::PrefsManager() :
 	m_sCoursesToShowRanking		( "CoursesToShowRanking",		"" ),
 
 	m_bQuirksMode		( "QuirksMode",		false ),
+	m_DefaultFailType("DefaultFailtype", FailType_ImmediateContinue),
 
 	/* Debug: */
 	m_bLogToDisk			( "LogToDisk",		true ),
@@ -546,7 +551,7 @@ public:
 		IPreference *pPref = IPreference::GetPreferenceByName( sName );
 		if( pPref == NULL )
 		{
-			LOG->Warn( "GetPreference: unknown preference \"%s\"", sName.c_str() );
+			LuaHelpers::ReportScriptErrorFmt( "GetPreference: unknown preference \"%s\"", sName.c_str() );
 			lua_pushnil( L );
 			return 1;
 		}
@@ -561,7 +566,7 @@ public:
 		IPreference *pPref = IPreference::GetPreferenceByName( sName );
 		if( pPref == NULL )
 		{
-			LOG->Warn( "SetPreference: unknown preference \"%s\"", sName.c_str() );
+			LuaHelpers::ReportScriptErrorFmt( "SetPreference: unknown preference \"%s\"", sName.c_str() );
 			return 0;
 		}
 
@@ -576,7 +581,7 @@ public:
 		IPreference *pPref = IPreference::GetPreferenceByName( sName );
 		if( pPref == NULL )
 		{
-			LOG->Warn( "SetPreferenceToDefault: unknown preference \"%s\"", sName.c_str() );
+			LuaHelpers::ReportScriptErrorFmt( "SetPreferenceToDefault: unknown preference \"%s\"", sName.c_str() );
 			return 0;
 		}
 
@@ -597,13 +602,16 @@ public:
 		lua_pushboolean( L, true );
 		return 1;
 	}
-
+	
+	static int SavePreferences( T* p, lua_State *L ) { p->SavePrefsToDisk(); return 0; }
+	
 	LunaPrefsManager()
 	{
 		ADD_METHOD( GetPreference );
 		ADD_METHOD( SetPreference );
 		ADD_METHOD( SetPreferenceToDefault );
 		ADD_METHOD( PreferenceExists );
+		ADD_METHOD( SavePreferences );
 	}
 };
 
