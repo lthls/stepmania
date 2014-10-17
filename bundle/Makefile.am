@@ -7,7 +7,7 @@ if WINDOWS
 endif
 
 install-exec-local:
-	cd ffmpeg && $(MAKE) install
+	cd ffmpeg && $(MAKE) install-libs
 endif
 
 del-dlls:
