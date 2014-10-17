@@ -8,6 +8,9 @@ endif
 
 install-exec-local:
 	cd ffmpeg && $(MAKE) install-libs
+
+uninstall-local:
+	cd ffmpeg && $(MAKE) uninstall-libs
 endif
 
 del-dlls:
