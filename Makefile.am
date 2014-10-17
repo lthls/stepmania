@@ -18,10 +18,12 @@ endif
 if !WITHOUT_FFMPEG
 if !SYSTEM_FFMPEG
 if !STATIC_FFMPEG
+if !WINDOWS
 installFiles += bundle/ffmpeg/libavutil/libavutil.so.52
 installFiles += bundle/ffmpeg/libswscale/libswscale.so.2
 installFiles += bundle/ffmpeg/libavcodec/libavcodec.so.55
 installFiles += bundle/ffmpeg/libavformat/libavformat.so.55
+endif
 endif
 endif
 endif
