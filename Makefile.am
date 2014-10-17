@@ -14,6 +14,18 @@ if HAVE_GTK
 installFiles += src/GtkModule.so
 endif
 
+# TODO: Those files won't be uninstalled
+if !WITHOUT_FFMPEG
+if !SYSTEM_FFMPEG
+if !STATIC_FFMPEG
+installFiles += bundle/ffmpeg/libavutil/libavutil.so.52
+installFiles += bundle/ffmpeg/libswscale/libswscale.so.2
+installFiles += bundle/ffmpeg/libavcodec/libavcodec.so.55
+installFiles += bundle/ffmpeg/libavformat/libavformat.so.55
+endif
+endif
+endif
+
 installData = $(srcdir)/Announcers $(srcdir)/BGAnimations $(srcdir)/Themes $(srcdir)/Characters $(srcdir)/Scripts $(srcdir)/Courses $(srcdir)/BackgroundEffects $(srcdir)/Data $(srcdir)/BackgroundTransitions $(srcdir)/Docs $(srcdir)/NoteSkins
 
 .PHONY: SMData
