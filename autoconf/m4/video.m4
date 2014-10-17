@@ -72,6 +72,7 @@ if test "$with_ffmpeg" = "yes"; then
 dnl System FFMpeg
 dnl We might as well throw in GPL stuff as we're bound to GPL by libmad anyway.
 		FFMPEG_CONFFLAGS="--enable-gpl --disable-programs --disable-doc --disable-avdevice --disable-swresample --disable-postproc --disable-avfilter"
+		FFMPEG_CONFFLAGS="$FFMPEG_CONFFLAGS --prefix=$prefix"
 		if test "$host_os" = "mingw32"; then
 			FFMPEG_CONFFLAGS="$FFMPEG_CONFFLAGS --yasmexe=../yasm-1.2.0-win32.exe --arch=x86"
 		fi
@@ -96,7 +97,7 @@ dnl It's NOT autoconf-based, so AC_CONFIG_SUBDIRS does not work.
 		CXXFLAGS="$CXXFLAGS -I$PWD/bundle/ffmpeg"
 dnl Make the binary find our bundled libs
 		if test "$ffmpeg_rpath" = "no"; then
-			LDFLAGS="$LDFLAGS -Wl,-rpath=. -Wl,-rpath=bundle/ffmpeg/libavutil,-rpath=bundle/ffmpeg/libavformat,-rpath=bundle/ffmpeg/libavcodec,-rpath=bundle/ffmpeg/libswscale"
+			LDFLAGS="$LDFLAGS -Wl,-rpath=. -Wl,-rpath=../lib -Wl,-rpath=bundle/ffmpeg/libavutil,-rpath=bundle/ffmpeg/libavformat,-rpath=bundle/ffmpeg/libavcodec,-rpath=bundle/ffmpeg/libswscale"
 		else
 			LDFLAGS="$LDFLAGS -Wl,-rpath=$ffmpeg_rpath"
 		fi

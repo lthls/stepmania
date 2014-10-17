@@ -5,6 +5,9 @@ all-local:
 if WINDOWS
 	cp ffmpeg/*/*.dll ..
 endif
+
+install-exec-local:
+	cd ffmpeg && $(MAKE) install
 endif
 
 del-dlls:
