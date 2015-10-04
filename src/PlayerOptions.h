@@ -11,6 +11,7 @@ struct lua_State;
 
 #include "GameConstantsAndTypes.h"
 #include "PlayerNumber.h"
+#include "PrefsManager.h"
 
 enum LifeType
 {
@@ -61,7 +62,8 @@ public:
 		m_fSkew(0), m_SpeedfSkew(1.0f),
 		m_fPassmark(0), m_SpeedfPassmark(1.0f),
 		m_fRandomSpeed(0), m_SpeedfRandomSpeed(1.0f),
-		m_bMuteOnError(false), m_FailType(FailType_Immediate)
+		m_bMuteOnError(false), m_FailType(FailType_Immediate),
+		m_MinTNSToHideNotes(PREFSMAN->m_MinTNSToHideNotes)
 	{
 		m_sNoteSkin = "";
 		ZERO( m_fAccels );	ONE( m_SpeedfAccels );
@@ -94,6 +96,7 @@ public:
 
 	bool operator==( const PlayerOptions &other ) const;
 	bool operator!=( const PlayerOptions &other ) const { return !operator==(other); }
+	PlayerOptions& operator=(PlayerOptions const& other);
 
 	/** @brief The various acceleration mods. */
 	enum Accel {
@@ -181,6 +184,8 @@ public:
 
 	float GetReversePercentForColumn( int iCol ) const; // accounts for all Directions
 
+	PlayerNumber m_pn; // Needed for fetching the style.
+
 	LifeType m_LifeType;
 	DrainType m_DrainType;	// only used with LifeBar
 	int m_BatteryLives;
@@ -215,6 +220,7 @@ public:
 	bool		m_bMuteOnError;
 	/** @brief The method for which a player can fail a song. */
 	FailType m_FailType;
+	TapNoteScore m_MinTNSToHideNotes;
 
 	/**
 	 * @brief The Noteskin to use.

@@ -3,6 +3,7 @@
 #include "RageMath.h"
 #include "RageLog.h"
 #include "RageFile.h"
+#include "RageSoundReader_FileReader.h"
 #include "Foreach.h"
 #include "LocalizedString.h"
 #include "LuaBinding.h"
@@ -177,14 +178,25 @@ float fmodfp(float x, float y)
 	return x;
 }
 
-int power_of_two( int iInput )
+int power_of_two( int input )
 {
-	int iValue = 1;
-
-	while( iValue < iInput )
-		iValue <<= 1;
-
-	return iValue;
+	int exp = 31, i = input;
+	if (i >> 16)
+		i >>= 16;
+	else exp -= 16;
+	if (i >> 8)
+		i >>= 8;
+	else exp -= 8;
+	if (i >> 4)
+		i >>= 4;
+	else exp -= 4;
+	if (i >> 2)
+		i >>= 2;
+	else exp -= 2;
+	if (i >> 1 == 0)
+		exp -= 1;
+	int value = 1 << exp;
+	return (input == value) ? value : (value << 1);
 }
 
 bool IsAnInt( const RString &s )
@@ -332,17 +344,46 @@ RString Commify( int iNum )
 	return Commify( sNum );
 }
 
-RString Commify( RString sNum, RString sSeperator ) 
+RString Commify(const RString& num, const RString& sep, const RString& dot)
 {
-	RString sReturn;
-	for( unsigned i=0; i<sNum.length(); i++ )
+	size_t num_start= 0;
+	size_t num_end= num.size();
+	size_t dot_pos= num.find(dot);
+	size_t dash_pos= num.find('-');
+	if(dot_pos != string::npos)
 	{
-		char cDigit = sNum[sNum.length()-1-i];
-		if( i!=0 && i%3 == 0 )
-			sReturn = sSeperator + sReturn;
-		sReturn = cDigit + sReturn;
+		num_end= dot_pos;
 	}
-	return sReturn;
+	if(dash_pos != string::npos)
+	{
+		num_start= dash_pos + 1;
+	}
+	size_t num_size= num_end - num_start;
+	size_t commies= (num_size / 3) - (!(num_size % 3));
+	if(commies < 1)
+	{
+		return num;
+	}
+	size_t commified_len= num.size() + (commies * sep.size());
+	RString ret;
+	ret.resize(commified_len);
+	size_t dest= 0;
+	size_t next_comma= (num_size % 3) + (3 * (!(num_size % 3))) + num_start;
+	for(size_t c= 0; c < num.size(); ++c)
+	{
+		if(c == next_comma && c < num_end)
+		{
+			for(size_t s= 0; s < sep.size(); ++s)
+			{
+				ret[dest]= sep[s];
+				++dest;
+			}
+			next_comma+= 3;
+		}
+		ret[dest]= num[c];
+		++dest;
+	}
+	return ret;
 }
 
 static LocalizedString NUM_PREFIX	( "RageUtil", "NumPrefix" );
@@ -427,31 +468,37 @@ RString vssprintf( const char *szFormat, va_list argList )
 		int iNeeded = vsnprintf( &ignore, 0, szFormat, tmp );
 		va_end(tmp);
 
-		char *buf = sStr.GetBuffer( iNeeded+1 );
+		char *buf = new char[iNeeded + 1];
+		std::fill(buf, buf + iNeeded + 1, '\0');
 		vsnprintf( buf, iNeeded+1, szFormat, argList );
-		sStr.ReleaseBuffer( iNeeded );
-		return sStr;
+		RString ret(buf);
+		delete [] buf;
+		return ret;
 	}
 
 	int iChars = FMT_BLOCK_SIZE;
 	int iTry = 1;
-	while( 1 )
+	for (;;)
 	{
 		// Grow more than linearly (e.g. 512, 1536, 3072, etc)
-		char *buf = sStr.GetBuffer(iChars);
-		int iUsed = vsnprintf(buf, iChars-1, szFormat, argList);
-
-		if( iUsed == -1 )
+		char *buf = new char[iChars];
+		std::fill(buf, buf + iChars, '\0');
+		int used = vsnprintf( buf, iChars - 1, szFormat, argList );
+		if ( used == -1 )
 		{
-			iChars += ((iTry+1) * FMT_BLOCK_SIZE);
-			sStr.ReleaseBuffer();
-			++iTry;
-			continue;
+			iChars += ( ++iTry * FMT_BLOCK_SIZE );
 		}
-
-		/* OK */
-		sStr.ReleaseBuffer(iUsed);
-		break;
+		else
+		{
+			/* OK */
+			sStr.assign(buf, used);
+		}
+		
+		delete [] buf;
+		if (used != -1)
+		{
+			break;
+		}
 	}
 #endif
 	return sStr;
@@ -667,6 +714,14 @@ RString join( const RString &sDeliminator, const vector<RString> &sSource)
 		return RString();
 
 	RString sTmp;
+	size_t final_size= 0;
+	size_t delim_size= sDeliminator.size();
+	for(size_t n= 0; n < sSource.size()-1; ++n)
+	{
+		final_size+= sSource[n].size() + delim_size;
+	}
+	final_size+= sSource.back().size();
+	sTmp.reserve(final_size);
 
 	for( unsigned iNum = 0; iNum < sSource.size()-1; iNum++ )
 	{
@@ -683,6 +738,18 @@ RString join( const RString &sDelimitor, vector<RString>::const_iterator begin, 
 		return RString();
 
 	RString sRet;
+	size_t final_size= 0;
+	size_t delim_size= sDelimitor.size();
+	for(vector<RString>::const_iterator curr= begin; curr != end; ++curr)
+	{
+		final_size+= curr->size();
+		if(curr != end)
+		{
+			final_size+= delim_size;
+		}
+	}
+	sRet.reserve(final_size);
+
 	while( begin != end )
 	{
 		sRet += *begin;
@@ -968,6 +1035,47 @@ void MakeValidFilename( RString &sName )
 	}
 
 	sName = WStringToRString( wsName );
+}
+
+bool FindFirstFilenameContaining(const vector<RString>& filenames,
+	RString& out, const vector<RString>& starts_with,
+	const vector<RString>& contains, const vector<RString>& ends_with)
+{
+	for(size_t i= 0; i < filenames.size(); ++i)
+	{
+		RString lower= GetFileNameWithoutExtension(filenames[i]);
+		lower.MakeLower();
+		for(size_t s= 0; s < starts_with.size(); ++s)
+		{
+			if(!lower.compare(0, starts_with[s].size(), starts_with[s]))
+			{
+				out= filenames[i];
+				return true;
+			}
+		}
+		size_t lower_size= lower.size();
+		for(size_t s= 0; s < ends_with.size(); ++s)
+		{
+			if(lower_size >= ends_with[s].size())
+			{
+				size_t end_pos= lower_size - ends_with[s].size();
+				if(!lower.compare(end_pos, string::npos, ends_with[s]))
+				{
+					out= filenames[i];
+					return true;
+				}
+			}
+		}
+		for(size_t s= 0; s < contains.size(); ++s)
+		{
+			if(lower.find(contains[s]) != string::npos)
+			{
+				out= filenames[i];
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 int g_argc = 0;
@@ -1342,7 +1450,11 @@ bool GetFileContents( const RString &sFile, vector<RString> &asOut )
 	return true;
 }
 
+#ifndef USE_SYSTEM_PCRE
 #include "../extern/pcre/pcre.h"
+#else
+#include <pcre.h>
+#endif
 void Regex::Compile()
 {
 	const char *error;
@@ -1751,16 +1863,6 @@ void MakeLower( wchar_t *p, size_t iLen )
 	UnicodeUpperLower( p, iLen, g_LowerCase );
 }
 
-bool operator>>(const RString& lhs, int& rhs)
-{
-	return !!(istringstream(lhs) >> rhs);
-}
-
-bool operator>>(const RString& lhs, float& rhs)
-{
-	return !!(istringstream(lhs) >> rhs);
-}
-
 int StringToInt( const RString &sString )
 {
 	int ret;
@@ -2053,12 +2155,11 @@ RString Capitalize( const RString &s )
 	if( s.empty() )
 		return RString();
 
-	RString s2 = s;
-	char *pBuf = s2.GetBuffer();
-	UnicodeDoUpper( pBuf, s2.size(), g_UpperCase );
-	s2.ReleaseBuffer();
+	char *buf = const_cast<char *>(s.c_str());
+	
+	UnicodeDoUpper( buf, s.size(), g_UpperCase );
 
-	return s2;
+	return buf;
 }
 
 unsigned char g_UpperCase[256] =
@@ -2329,6 +2430,121 @@ LuaFunction( PrettyPercent, PrettyPercent( FArg(1), FArg(2) ) );
 //LuaFunction( IsHexVal, IsHexVal( SArg(1) ) );
 static bool UndocumentedFeature( RString s ){ sm_crash(s); return true; }
 LuaFunction( UndocumentedFeature, UndocumentedFeature(SArg(1)) );
+LuaFunction( lerp, lerp(FArg(1), FArg(2), FArg(3)) );
+
+int LuaFunc_commify(lua_State* L);
+int LuaFunc_commify(lua_State* L)
+{
+	RString num= SArg(1);
+	RString sep= ",";
+	RString dot= ".";
+	if(!lua_isnoneornil(L, 2))
+	{
+		sep= lua_tostring(L, 2);
+	}
+	if(!lua_isnoneornil(L, 3))
+	{
+		dot= lua_tostring(L, 3);
+	}
+	RString ret= Commify(num, sep, dot);
+	LuaHelpers::Push(L, ret);
+	return 1;
+}
+LUAFUNC_REGISTER_COMMON(commify);
+
+void luafunc_approach_internal(lua_State* L, int valind, int goalind, int speedind, const float mult);
+void luafunc_approach_internal(lua_State* L, int valind, int goalind, int speedind, const float mult, int process_index)
+{
+#define TONUMBER_NICE(dest, num_name, index) \
+	if(!lua_isnumber(L, index)) \
+	{ \
+		luaL_error(L, "approach: " #num_name " for approach %d is not a number.", process_index); \
+	} \
+	dest= lua_tonumber(L, index);
+	float val= 0;
+	float goal= 0;
+	float speed= 0;
+	TONUMBER_NICE(val, current, valind);
+	TONUMBER_NICE(goal, goal, goalind);
+	TONUMBER_NICE(speed, speed, speedind);
+#undef TONUMBER_NICE
+	if(speed < 0)
+	{
+		luaL_error(L, "approach: speed %d is negative.", process_index);
+	}
+	fapproach(val, goal, speed*mult);
+	lua_pushnumber(L, val);
+}
+
+int LuaFunc_approach(lua_State* L);
+int LuaFunc_approach(lua_State* L)
+{
+	// Args:  current, goal, speed
+	// Returns:  new_current
+	luafunc_approach_internal(L, 1, 2, 3, 1.0f, 1);
+	return 1;
+}
+LUAFUNC_REGISTER_COMMON(approach);
+
+int LuaFunc_multiapproach(lua_State* L);
+int LuaFunc_multiapproach(lua_State* L)
+{
+	// Args:  {currents}, {goals}, {speeds}, speed_multiplier
+	// speed_multiplier is optional, and is intended to be the delta time for
+	// the frame, so that this can be used every frame and have the current
+	// approach the goal at a framerate independent speed.
+	// Returns:  {currents}
+	// Modifies the values in {currents} in place.
+	if(lua_gettop(L) < 3)
+	{
+		luaL_error(L, "multiapproach:  A table of current values, a table of goal values, and a table of speeds must be passed.");
+	}
+	size_t currents_len= lua_objlen(L, 1);
+	size_t goals_len= lua_objlen(L, 2);
+	size_t speeds_len= lua_objlen(L, 3);
+	float mult= 1.0f;
+	if(lua_isnumber(L, 4))
+	{
+		mult= lua_tonumber(L, 4);
+	}
+	if(currents_len != goals_len || currents_len != speeds_len)
+	{
+		luaL_error(L, "multiapproach:  There must be the same number of current values, goal values, and speeds.");
+	}
+	if(!lua_istable(L, 1) || !lua_istable(L, 2) || !lua_istable(L, 3))
+	{
+		luaL_error(L, "multiapproach:  current, goal, and speed must all be tables.");
+	}
+	for(size_t i= 1; i <= currents_len; ++i)
+	{
+		lua_rawgeti(L, 1, i);
+		lua_rawgeti(L, 2, i);
+		lua_rawgeti(L, 3, i);
+		luafunc_approach_internal(L, -3, -2, -1, mult, i);
+		lua_rawseti(L, 1, i);
+		lua_pop(L, 3);
+	}
+	lua_pushvalue(L, 1);
+	return 1;
+}
+LUAFUNC_REGISTER_COMMON(multiapproach);
+
+int LuaFunc_get_music_file_length(lua_State* L);
+int LuaFunc_get_music_file_length(lua_State* L)
+{
+	// Args:  file_path
+	// Returns:  The length of the music in seconds.
+	RString path= SArg(1);
+	RString error;
+	RageSoundReader* sample= RageSoundReader_FileReader::OpenFile(path, error);
+	if(sample == NULL)
+	{
+		luaL_error(L, "The music file '%s' does not exist.", path.c_str());
+	}
+	lua_pushnumber(L, sample->GetLength() / 1000.0f);
+	return 1;
+}
+LUAFUNC_REGISTER_COMMON(get_music_file_length);
 
 /*
  * Copyright (c) 2001-2005 Chris Danford, Glenn Maynard

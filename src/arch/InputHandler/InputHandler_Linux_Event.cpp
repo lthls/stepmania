@@ -3,9 +3,15 @@
 #include "RageLog.h"
 #include "RageUtil.h"
 #include "LinuxInputManager.h"
+#include "GamePreferences.h" //needed for Axis Fix
 
+#if defined(HAVE_UNISTD_H)
 #include <unistd.h>
+#endif
+
+#if defined(HAVE_FCNTL_H)
 #include <fcntl.h>
+#endif
 
 #include <errno.h>
 #include <sys/types.h>
@@ -408,8 +414,16 @@ void InputHandler_Linux_Event::InputThread()
 				DeviceButton pos = g_apEventDevices[i]->aiAbsMappingHigh[event.code];
 
 				float l = SCALE( int(event.value), (float) g_apEventDevices[i]->aiAbsMin[event.code], (float) g_apEventDevices[i]->aiAbsMax[event.code], -1.0f, 1.0f );
-				ButtonPressed( DeviceInput(g_apEventDevices[i]->m_Dev, neg, max(-l,0), now) );
-				ButtonPressed( DeviceInput(g_apEventDevices[i]->m_Dev, pos, max(+l,0), now) );
+				if (GamePreferences::m_AxisFix)
+				{
+				  ButtonPressed( DeviceInput(g_apEventDevices[i]->m_Dev, neg, (l < -0.5)||((l > 0.0001)&&(l < 0.5)), now) ); //Up if between 0.0001 and 0.5 or if less than -0.5
+				  ButtonPressed( DeviceInput(g_apEventDevices[i]->m_Dev, pos, (l > 0.5)||((l > 0.0001)&&(l < 0.5)) , now) ); //Down if between 0.0001 and 0.5 or if more than 0.5
+				}
+				else
+				{
+				  ButtonPressed( DeviceInput(g_apEventDevices[i]->m_Dev, neg, max(-l,0), now) );
+				  ButtonPressed( DeviceInput(g_apEventDevices[i]->m_Dev, pos, max(+l,0), now) );
+				}
 				break;
 			}
 			}

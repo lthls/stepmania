@@ -276,7 +276,7 @@ static void DoPlayOnce( RString sPath )
 	RageSound *pSound = new RageSound;
 	pSound->Load( sPath, false );
 
-	pSound->Play();
+	pSound->Play(false);
 	pSound->DeleteSelfWhenFinishedPlaying();
 }
 
@@ -353,7 +353,7 @@ static void StartQueuedSounds()
 			StartMusic( aMusicsToPlay[i] );
 		else
 		{
-			CHECKPOINT;
+			CHECKPOINT_M( ssprintf("Removing old sound at index %d", i));
 			/* StopPlaying() can take a while, so don't hold the lock while we stop the sound. */
 			g_Mutex->Lock();
 			RageSound *pOldSound = g_Playing->m_Music;
@@ -795,19 +795,23 @@ public:
 		float fVolume = FArg(1);
 		float fDurationSeconds = FArg(2);
 		p->DimMusic( fVolume, fDurationSeconds );
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 	static int PlayOnce( T* p, lua_State *L )
 	{
 		RString sPath = SArg(1);
+		if(lua_toboolean(L, 2) && PREFSMAN->m_MuteActions)
+		{
+			COMMON_RETURN_SELF;
+		}
 		p->PlayOnce( sPath );
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 	static int PlayAnnouncer( T* p, lua_State *L )
 	{
 		RString sPath = SArg(1);
 		p->PlayOnceFromAnnouncer( sPath );
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 	static int GetPlayerBalance( T* p, lua_State *L )
 	{
@@ -847,10 +851,10 @@ public:
 		}
 		p->PlayMusic(musicPath, NULL, loop, musicStart, musicLength,
 			fadeIn, fadeOut, alignBeat, applyRate);
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 
-	static int StopMusic( T* p, lua_State *L )			{ p->StopMusic(); return 0; }
+	static int StopMusic( T* p, lua_State *L )			{ p->StopMusic(); COMMON_RETURN_SELF; }
 	static int IsTimingDelayed( T* p, lua_State *L )	{ lua_pushboolean( L, g_Playing->m_bTimingDelayed ); return 1; }
 	
 	LunaGameSoundManager()

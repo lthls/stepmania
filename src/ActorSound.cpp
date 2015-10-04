@@ -14,7 +14,7 @@ void ActorSound::Load( const RString &sPath )
 
 void ActorSound::Play()
 {
-	m_Sound.Play();
+	m_Sound.Play(m_is_action);
 }
 
 void ActorSound::Pause( bool bPause )
@@ -32,6 +32,7 @@ void ActorSound::LoadFromNode( const XNode* pNode )
 	RageSoundLoadParams params;
 	pNode->GetAttrValue("SupportPan", params.m_bSupportPan);
 	pNode->GetAttrValue("SupportRateChanging", params.m_bSupportRateChanging);
+	pNode->GetAttrValue("IsAction", m_is_action);
 
 	bool bPrecache = true;
 	pNode->GetAttrValue( "Precache", bPrecache );
@@ -50,11 +51,17 @@ void ActorSound::LoadFromNode( const XNode* pNode )
 class LunaActorSound: public Luna<ActorSound>
 {
 public:
-	static int load( T* p, lua_State *L )			{ p->Load(SArg(1)); return 0; }
-	static int play( T* p, lua_State *L )			{ p->Play(); return 0; }
-	static int pause( T* p, lua_State *L )			{ p->Pause(BArg(1)); return 0; }
-	static int stop( T* p, lua_State *L )			{ p->Stop(); return 0; }
+	static int load( T* p, lua_State *L )			{ p->Load(SArg(1)); COMMON_RETURN_SELF; }
+	static int play( T* p, lua_State *L )			{ p->Play(); COMMON_RETURN_SELF; }
+	static int pause( T* p, lua_State *L )			{ p->Pause(BArg(1)); COMMON_RETURN_SELF; }
+	static int stop( T* p, lua_State *L )			{ p->Stop(); COMMON_RETURN_SELF; }
 	static int get( T* p, lua_State *L )			{ p->PushSound( L ); return 1; }
+	static int set_is_action(T* p, lua_State* L)
+	{
+		p->m_is_action= BArg(1);
+		COMMON_RETURN_SELF;
+	}
+	DEFINE_METHOD(get_is_action, m_is_action);
 
 	LunaActorSound()
 	{
@@ -63,6 +70,7 @@ public:
 		ADD_METHOD( pause );
 		ADD_METHOD( stop );
 		ADD_METHOD( get );
+		ADD_GET_SET_METHODS(is_action);
 	}
 };
 

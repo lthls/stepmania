@@ -5,6 +5,7 @@
  */
 
 #include "global.h"
+#include "RageLog.h"
 #include "RageMath.h"
 #include "RageTypes.h"
 #include <float.h>
@@ -38,6 +39,22 @@ void RageVec3Normalize( RageVector3* pOut, const RageVector3* pV )
 	pOut->x = pV->x * scale;
 	pOut->y = pV->y * scale;
 	pOut->z = pV->z * scale;
+}
+
+void VectorFloatNormalize(vector<float>& v)
+{
+	ASSERT_M(v.size() == 3, "Can't normalize a non-3D vector.");
+	float scale = 1.0f / sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+	v[0]*= scale;
+	v[1]*= scale;
+	v[2]*= scale;
+}
+
+void RageVec3Cross(RageVector3* ret, RageVector3 const* a, RageVector3 const* b)
+{
+	ret->x= (a->y * b->z) - (a->z * b->y);
+	ret->y= ((a->x * b->z) - (a->z * b->x));
+	ret->z= (a->x * b->y) - (a->y * b->x);
 }
 
 void RageVec3TransformCoord( RageVector3* pOut, const RageVector3* pV, const RageMatrix* pM )
@@ -311,6 +328,21 @@ void RageMatrixRotationXYZ( RageMatrix* pOut, float rX, float rY, float rZ )
 	pOut->m31 = 0;
 	pOut->m32 = 0;
 	pOut->m33 = 1;
+}
+
+void RageAARotate(RageVector3* inret, RageVector3 const* axis, float angle)
+{
+	float ha= angle/2.0f;
+	float ca2= RageFastCos(ha);
+	float sa2= RageFastSin(ha);
+	RageVector4 quat(axis->x * sa2, axis->y * sa2, axis->z * sa2, ca2);
+	RageVector4 quatc(-quat.x, -quat.y, -quat.z, ca2);
+	RageVector4 point(inret->x, inret->y, inret->z, 0.0f);
+	RageQuatMultiply(&point, quat, point);
+	RageQuatMultiply(&point, point, quatc);
+	inret->x= point.x;
+	inret->y= point.y;
+	inret->z= point.z;
 }
 
 void RageQuatMultiply( RageVector4* pOut, const RageVector4 &pA, const RageVector4 &pB )
@@ -673,7 +705,8 @@ float RageBezier2D::EvaluateYFromX( float fX ) const
 	 * http://www.tinaja.com/text/bezmath.html).  This usually finds T within an
 	 * acceptable error margin in a few steps. */
 	float fT = SCALE( fX, m_X.GetBezierStart(), m_X.GetBezierEnd(), 0, 1 );
-	while(1)
+	// Don't try more than 100 times, the curve might be a bit nonsensical. -Kyz
+	for(int i= 0; i < 100; ++i)
 	{
 		float fGuessedX = m_X.Evaluate( fT );
 		float fError = fX-fGuessedX;
@@ -685,6 +718,7 @@ float RageBezier2D::EvaluateYFromX( float fX ) const
 		float fSlope = m_X.GetSlope( fT );
 		fT += fError/fSlope;
 	}
+	return m_Y.Evaluate( fT );
 }
 
 void RageBezier2D::SetFromBezier(
@@ -694,6 +728,119 @@ void RageBezier2D::SetFromBezier(
 	m_X.SetFromBezier( fC1X, fC2X, fC3X, fC4X );
 	m_Y.SetFromBezier( fC1Y, fC2Y, fC3Y, fC4Y );
 }
+
+#include "LuaBinding.h"
+
+struct LunaRageQuadratic : Luna<RageQuadratic>
+{
+	static int evaluate(T* p, lua_State* L)
+	{
+		lua_pushnumber(L, p->Evaluate(FArg(1)));
+		return 1;
+	}
+	static int get_bezier(T* p, lua_State* L)
+	{
+		float a, b, c, d;
+		p->GetBezier(a, b, c, d);
+		lua_pushnumber(L, a);
+		lua_pushnumber(L, b);
+		lua_pushnumber(L, c);
+		lua_pushnumber(L, d);
+		return 4;
+	}
+	static int get_bezier_end(T* p, lua_State* L)
+	{
+		lua_pushnumber(L, p->GetBezierEnd());
+		return 1;
+	}
+	static int get_bezier_start(T* p, lua_State* L)
+	{
+		lua_pushnumber(L, p->GetBezierStart());
+		return 1;
+	}
+	static int get_slope(T* p, lua_State* L)
+	{
+		lua_pushnumber(L, p->GetSlope(FArg(1)));
+		return 1;
+	}
+	static int set_from_bezier(T* p, lua_State* L)
+	{
+		p->SetFromBezier(FArg(1), FArg(2), FArg(3), FArg(4));
+		COMMON_RETURN_SELF;
+	}
+	static int set_from_cubic(T* p, lua_State* L)
+	{
+		p->SetFromCubic(FArg(1), FArg(2), FArg(3), FArg(4));
+		COMMON_RETURN_SELF;
+	}
+	LunaRageQuadratic()
+	{
+		ADD_METHOD(evaluate);
+		ADD_METHOD(get_bezier);
+		ADD_METHOD(get_bezier_end);
+		ADD_METHOD(get_bezier_start);
+		ADD_METHOD(get_slope);
+		ADD_METHOD(set_from_bezier);
+		ADD_METHOD(set_from_cubic);
+	}
+};
+LUA_REGISTER_CLASS(RageQuadratic);
+
+struct LunaRageBezier2D : Luna<RageBezier2D>
+{
+	static int evaluate(T* p, lua_State* L)
+	{
+		float x, y;
+		p->Evaluate(FArg(1), &x, &y);
+		lua_pushnumber(L, x);
+		lua_pushnumber(L, y);
+		return 2;
+	}
+	static int evaluate_y_from_x(T* p, lua_State* L)
+	{
+		lua_pushnumber(L, p->EvaluateYFromX(FArg(1)));
+		return 1;
+	}
+	static int get_x(T* p, lua_State* L)
+	{
+		p->get_x().PushSelf(L);
+		return 1;
+	}
+	static int get_y(T* p, lua_State* L)
+	{
+		p->get_y().PushSelf(L);
+		return 1;
+	}
+	static int set_from_bezier(T* p, lua_State* L)
+	{
+		p->SetFromBezier(FArg(1), FArg(2), FArg(3), FArg(4), FArg(5), FArg(6), FArg(7), FArg(8));
+		COMMON_RETURN_SELF;
+	}
+	static int destroy(T* p, lua_State* L)
+	{
+		SAFE_DELETE(p);
+		return 0;
+	}
+	LunaRageBezier2D()
+	{
+		ADD_METHOD(destroy);
+		ADD_METHOD(evaluate);
+		ADD_METHOD(evaluate_y_from_x);
+		ADD_METHOD(get_x);
+		ADD_METHOD(get_y);
+		ADD_METHOD(set_from_bezier);
+	}
+};
+LUA_REGISTER_CLASS(RageBezier2D);
+
+int LuaFunc_create_bezier(lua_State* L);
+int LuaFunc_create_bezier(lua_State* L)
+{
+	RageBezier2D* bezier= new RageBezier2D;
+	bezier->PushSelf(L);
+	return 1;
+}
+LUAFUNC_REGISTER_COMMON(create_bezier);
 
 /*
  * Copyright (c) 2001-2006 Chris Danford, Glenn Maynard

@@ -70,10 +70,16 @@ if test "$with_ffmpeg" = "yes"; then
 		fi
 	else
 dnl System FFMpeg
+dnl HACK: $prefix is set to NONE if not user specified
+		if test "$prefix" = "NONE"; then
+			our_installdir="/opt"
+		else
+			our_installdir="$prefix"
+		fi
 dnl We might as well throw in GPL stuff as we're bound to GPL by libmad anyway.
-		FFMPEG_CONFFLAGS="--enable-gpl --disable-programs --disable-doc --disable-avdevice --disable-swresample --disable-postproc --disable-avfilter"
+		FFMPEG_CONFFLAGS="--shlibdir=$our_installdir/stepmania-$VERSION --enable-gpl --disable-programs --disable-doc --disable-avdevice --disable-swresample --disable-postproc --disable-avfilter"
 		if test "$host_os" = "mingw32"; then
-			FFMPEG_CONFFLAGS="$FFMPEG_CONFFLAGS --yasmexe=../yasm-1.2.0-win32.exe --arch=x86"
+			FFMPEG_CONFFLAGS="$FFMPEG_CONFFLAGS --arch=x86"
 		fi
 		if test "$enable_lto" = "yes"; then
 			FFMPEG_CONFFLAGS="$FFMPEG_CONFFLAGS --enable-lto"
@@ -101,7 +107,7 @@ dnl Make the binary find our bundled libs
 			LDFLAGS="$LDFLAGS -Wl,-rpath=$ffmpeg_rpath"
 		fi
 dnl Classic autoconf. This CANNOT be broken across multiple lines.
-		VIDEO_LIBS="-L$PWD/bundle/ffmpeg/libavutil -lavutil -L$PWD/bundle/ffmpeg/libavformat -lavformat -L$PWD/bundle/ffmpeg/libavcodec -lavcodec -L$PWD/bundle/ffmpeg/libswscale -lswscale"
+		VIDEO_LIBS="-L$PWD/bundle/ffmpeg/libavformat -lavformat -L$PWD/bundle/ffmpeg/libavcodec -lavcodec -L$PWD/bundle/ffmpeg/libswscale -lswscale -L$PWD/bundle/ffmpeg/libavutil -lavutil"
 		have_ffmpeg=yes
 	fi
 fi

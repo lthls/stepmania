@@ -8,6 +8,7 @@
 #include "RageLog.h"
 #include "RageDisplay.h"
 #include "RageTexture.h"
+#include "RageTimer.h"
 #include "RageUtil.h"
 #include "ActorUtil.h"
 #include "Foreach.h"
@@ -16,22 +17,28 @@
 
 REGISTER_ACTOR_CLASS( Sprite );
 
+const float min_state_delay= 0.0001f;
 
 Sprite::Sprite()
 {
 	m_pTexture = NULL;
 	m_iCurState = 0;
 	m_fSecsIntoState = 0.0f;
+	m_animation_length_seconds= 0.0f;
 	m_bUsingCustomTexCoords = false;
 	m_bUsingCustomPosCoords = false;
 	m_bSkipNextUpdate = true;
+	m_DecodeMovie= true;
 	m_EffectMode = EffectMode_Normal;
 	
 	m_fRememberedClipWidth = -1;
 	m_fRememberedClipHeight = -1;
+	m_fRememberedCropWidth = -1;
+	m_fRememberedCropHeight = -1;
 
 	m_fTexCoordVelocityX = 0;
 	m_fTexCoordVelocityY = 0;
+	m_use_effect_clock_for_texcoords= false;
 }
 
 // NoteSkinManager needs a sprite with a texture set to return in cases where
@@ -56,18 +63,23 @@ Sprite::Sprite( const Sprite &cpy ):
 {
 #define CPY(a) a = cpy.a
 	CPY( m_States );
+	CPY(m_animation_length_seconds);
 	CPY( m_iCurState );
 	CPY( m_fSecsIntoState );
 	CPY( m_bUsingCustomTexCoords );
 	CPY( m_bUsingCustomPosCoords );
 	CPY( m_bSkipNextUpdate );
+	CPY( m_DecodeMovie );
 	CPY( m_EffectMode );
 	memcpy( m_CustomTexCoords, cpy.m_CustomTexCoords, sizeof(m_CustomTexCoords) );
 	memcpy( m_CustomPosCoords, cpy.m_CustomPosCoords, sizeof(m_CustomPosCoords) );
 	CPY( m_fRememberedClipWidth );
 	CPY( m_fRememberedClipHeight );
+	CPY( m_fRememberedCropWidth );
+	CPY( m_fRememberedCropHeight );
 	CPY( m_fTexCoordVelocityX );
 	CPY( m_fTexCoordVelocityY );
+	CPY(m_use_effect_clock_for_texcoords);
 #undef CPY
 
 	if( cpy.m_pTexture != NULL )
@@ -90,6 +102,7 @@ void Sprite::SetAllStateDelays(float fDelay)
 	{
 		m_States[i].fDelay = fDelay;
 	}
+	RecalcAnimationLengthSeconds();
 }
 
 RageTextureID Sprite::SongBGTexture( RageTextureID ID )
@@ -182,12 +195,16 @@ void Sprite::LoadFromNode( const XNode* pNode )
 
 				State newState;
 				if( !pFrame->GetAttrValue("Delay", newState.fDelay) )
+				{
 					newState.fDelay = 0.1f;
+				}
 
 				pFrame->GetAttrValue( "Frame", iFrameIndex );
 				if( iFrameIndex >= m_pTexture->GetNumFrames() )
+				{
 					LuaHelpers::ReportScriptErrorFmt( "%s: State #%i is frame %d, but the texture \"%s\" only has %d frames",
-						ActorUtil::GetWhere(pNode).c_str(), i, iFrameIndex, sPath.c_str(), m_pTexture->GetNumFrames() );
+						ActorUtil::GetWhere(pNode).c_str(), i+1, iFrameIndex, sPath.c_str(), m_pTexture->GetNumFrames() );
+				}
 				newState.rect = *m_pTexture->GetTextureCoordRect( iFrameIndex );
 
 				const XNode *pPoints[2] = { pFrame->GetChild( "1" ), pFrame->GetChild( "2" ) };
@@ -241,6 +258,7 @@ void Sprite::LoadFromNode( const XNode* pNode )
 	}
 
 	Actor::LoadFromNode( pNode );
+	RecalcAnimationLengthSeconds();
 }
 
 void Sprite::UnloadTexture()
@@ -305,6 +323,11 @@ void Sprite::SetTexture( RageTexture *pTexture )
 	if( m_fRememberedClipWidth != -1 && m_fRememberedClipHeight != -1 )
 		ScaleToClipped( m_fRememberedClipWidth, m_fRememberedClipHeight );
 
+	if( m_fRememberedCropWidth != -1 && m_fRememberedCropHeight != -1 )
+	{
+		CropTo(m_fRememberedCropWidth, m_fRememberedCropHeight);
+	}
+
 	// Load default states if we haven't before.
 	if( m_States.empty() )
 		LoadStatesFromTexture();
@@ -344,6 +367,7 @@ void Sprite::LoadStatesFromTexture()
 		newState.rect = *m_pTexture->GetTextureCoordRect( i );
 		m_States.push_back( newState );
 	}
+	RecalcAnimationLengthSeconds();
 }
 
 void Sprite::UpdateAnimationState()
@@ -352,11 +376,20 @@ void Sprite::UpdateAnimationState()
 	// We already know what's going to show.
 	if( m_States.size() > 1 )
 	{
-		while( m_fSecsIntoState+0.0001f > m_States[m_iCurState].fDelay )	// it's time to switch frames
+		// UpdateAnimationState changed to not loop forever on negative state
+		// delay.  This allows a state to last forever when it is reached, so
+		// the animation has a built-in ending point. -Kyz
+		while(m_States[m_iCurState].fDelay > min_state_delay &&
+			m_fSecsIntoState+min_state_delay > m_States[m_iCurState].fDelay)
+		// it's time to switch frames
 		{
 			// increment frame and reset the counter
 			m_fSecsIntoState -= m_States[m_iCurState].fDelay;		// leave the left over time for the next frame
 			m_iCurState = (m_iCurState+1) % m_States.size();
+			if(m_iCurState == 0)
+			{
+				PlayCommand("AnimationFinished");
+			}
 		}
 	}
 }
@@ -398,24 +431,29 @@ void Sprite::Update( float fDelta )
 	UpdateAnimationState();
 
 	// If the texture is a movie, decode frames.
-	if( !bSkipThisMovieUpdate )
+	if(!bSkipThisMovieUpdate && m_DecodeMovie)
 		m_pTexture->DecodeSeconds( max(0, fTimePassed) );
 
 	// update scrolling
 	if( m_fTexCoordVelocityX != 0 || m_fTexCoordVelocityY != 0 )
 	{
+		float coord_delta= fDelta;
+		if(m_use_effect_clock_for_texcoords)
+		{
+			coord_delta= fTimePassed;
+		}
 		float fTexCoords[8];
 		Sprite::GetActiveTextureCoords( fTexCoords );
  
 		// top left, bottom left, bottom right, top right
-		fTexCoords[0] += fDelta*m_fTexCoordVelocityX;
-		fTexCoords[1] += fDelta*m_fTexCoordVelocityY; 
-		fTexCoords[2] += fDelta*m_fTexCoordVelocityX;
-		fTexCoords[3] += fDelta*m_fTexCoordVelocityY;
-		fTexCoords[4] += fDelta*m_fTexCoordVelocityX;
-		fTexCoords[5] += fDelta*m_fTexCoordVelocityY;
-		fTexCoords[6] += fDelta*m_fTexCoordVelocityX;
-		fTexCoords[7] += fDelta*m_fTexCoordVelocityY;
+		fTexCoords[0] += coord_delta * m_fTexCoordVelocityX;
+		fTexCoords[1] += coord_delta * m_fTexCoordVelocityY;
+		fTexCoords[2] += coord_delta * m_fTexCoordVelocityX;
+		fTexCoords[3] += coord_delta * m_fTexCoordVelocityY;
+		fTexCoords[4] += coord_delta * m_fTexCoordVelocityX;
+		fTexCoords[5] += coord_delta * m_fTexCoordVelocityY;
+		fTexCoords[6] += coord_delta * m_fTexCoordVelocityX;
+		fTexCoords[7] += coord_delta * m_fTexCoordVelocityY;
 
 		/* When wrapping, avoid gradual loss of precision and sending
 		 * unreasonably large texture coordinates to the renderer by pushing
@@ -762,12 +800,13 @@ void Sprite::SetState( int iNewState )
 	m_fSecsIntoState = 0.0f;
 }
 
-float Sprite::GetAnimationLengthSeconds() const
+void Sprite::RecalcAnimationLengthSeconds()
 {
-	float fTotal = 0;
-	FOREACH_CONST( State, m_States, s )
-		fTotal += s->fDelay;
-	return fTotal;
+	m_animation_length_seconds = 0;
+	FOREACH_CONST(State, m_States, s)
+	{
+		m_animation_length_seconds += s->fDelay;
+	}
 }
 
 void Sprite::SetSecondsIntoAnimation( float fSeconds )
@@ -881,125 +920,97 @@ void Sprite::SetTexCoordVelocity(float fVelX, float fVelY)
 	m_fTexCoordVelocityY = fVelY;
 }
 
-void Sprite::ScaleToClipped( float fWidth, float fHeight )
+void Sprite::ScaleToClipped( float width, float height )
 {
-	m_fRememberedClipWidth = fWidth;
-	m_fRememberedClipHeight = fHeight;
+	m_fRememberedClipWidth = width;
+	m_fRememberedClipHeight = height;
 
 	if( !m_pTexture )
-		return;
-
-	float fScaleFudgePercent = 0.15f;	// scale up to this amount in one dimension to avoid clipping.
-
-	// save the original X and Y.  We're going to restore them later.
-	float fOriginalX = GetX();
-	float fOriginalY = GetY();
-
-	if( fWidth != -1 && fHeight != -1 )
 	{
-		// this is probably a background graphic or something not intended to be a CroppedSprite
-		Sprite::StopUsingCustomCoords();
-
-		// first find the correct zoom
-		Sprite::ScaleToCover( RectF(0, 0, fWidth, fHeight) );
-		// find which dimension is larger
-		bool bXDimNeedsToBeCropped = GetZoomedWidth() > fWidth+0.01;
-		
-		if( bXDimNeedsToBeCropped ) // crop X
-		{
-			float fPercentageToCutOff = (this->GetZoomedWidth() - fWidth) / this->GetZoomedWidth();
-			fPercentageToCutOff = max( fPercentageToCutOff-fScaleFudgePercent, 0 );
-			float fPercentageToCutOffEachSide = fPercentageToCutOff / 2;
-
-			// generate a rectangle with new texture coordinates
-			RectF fCustomImageRect( 
-				fPercentageToCutOffEachSide, 
-				0, 
-				1 - fPercentageToCutOffEachSide, 
-				1 );
-			SetCustomImageRect( fCustomImageRect );
-		}
-		else // crop Y
-		{
-			float fPercentageToCutOff = (this->GetZoomedHeight() - fHeight) / this->GetZoomedHeight();
-			fPercentageToCutOff = max( fPercentageToCutOff-fScaleFudgePercent, 0 );
-			float fPercentageToCutOffEachSide = fPercentageToCutOff / 2;
-
-			// generate a rectangle with new texture coordinates
-			RectF fCustomImageRect( 
-				0, 
-				fPercentageToCutOffEachSide,
-				1, 
-				1 - fPercentageToCutOffEachSide );
-			SetCustomImageRect( fCustomImageRect );
-		}
-		m_size = RageVector2( fWidth, fHeight );
-		SetZoom( 1 );
+		return;
 	}
-
-	// restore original XY
-	SetXY( fOriginalX, fOriginalY );
+	// -1 means do nothing because it's the default value and means no
+	// remembered dimensions.
+	if(width == -1 || height == -1)
+	{
+		return;
+	}
+	// The previous implementation used a custom image rect and ended with a
+	// zoom of 1, didn't actually clip unless the dest was larger, and didn't
+	// reverse itself correctly, so it couldn't be used on an image that
+	// changed.  It also included a fudge factor which apparently existed
+	// solely to make the function only work when scaling up.
+	// Also, ScaleToClipped and CropTo were both setting RememberedClip, so
+	// after SetTexture, what was a CropTo operation was turned into a
+	// ScaleToClipped operation.
+	// This is much a much simpler implementation without the problems.
+	// The only caveat to this implementation is that GetWidth doesn't factor
+	// in cropping, so someone using GetWidth to put an outline around the
+	// sprite afterwards will end up with the wrong size. -Kyz
+	SetCropTop(0);
+	SetCropBottom(0);
+	SetCropLeft(0);
+	SetCropRight(0);
+	float uzw= GetUnzoomedWidth();
+	float uzh= GetUnzoomedHeight();
+	float xz= width / uzw;
+	float yz= height / uzh;
+	if(xz > yz)
+	{
+		SetZoom(xz);
+		float clip_amount= (1 - (height / (uzh * xz))) / 2;
+		SetCropTop(clip_amount);
+		SetCropBottom(clip_amount);
+	}
+	else
+	{
+		SetZoom(yz);
+		float clip_amount= (1 - (width / (uzw * yz))) / 2;
+		SetCropLeft(clip_amount);
+		SetCropRight(clip_amount);
+	}
 }
 
 
-// magic hurr
-// This code should either be removed or refactored in the future -aj
-void Sprite::CropTo( float fWidth, float fHeight )
+void Sprite::CropTo( float width, float height )
 {
-	m_fRememberedClipWidth = fWidth;
-	m_fRememberedClipHeight = fHeight;
-
+	m_fRememberedCropWidth= width;
+	m_fRememberedCropHeight= height;
 	if( !m_pTexture )
-		return;
-
-	// save the original X&Y.  We're going to restore them later.
-	float fOriginalX = GetX();
-	float fOriginalY = GetY();
-
-	if( fWidth != -1 && fHeight != -1 )
 	{
-		// this is probably a background graphic or something not intended to be a CroppedSprite
-		Sprite::StopUsingCustomCoords();
-
-		// first find the correct zoom
-		Sprite::ScaleToCover( RectF(0, 0, fWidth, fHeight) );
-		// find which dimension is larger
-		bool bXDimNeedsToBeCropped = GetZoomedWidth() > fWidth+0.01;
-		
-		if( bXDimNeedsToBeCropped )	// crop X
-		{
-			float fPercentageToCutOff = (this->GetZoomedWidth() - fWidth) / this->GetZoomedWidth();
-			float fPercentageToCutOffEachSide = fPercentageToCutOff / 2;
-
-			// generate a rectangle with new texture coordinates
-			RectF fCustomImageRect( 
-				fPercentageToCutOffEachSide, 
-				0, 
-				1 - fPercentageToCutOffEachSide, 
-				1 );
-			SetCustomImageRect( fCustomImageRect );
-		}
-		else		// crop Y
-		{
-			float fPercentageToCutOff = (this->GetZoomedHeight() - fHeight) / this->GetZoomedHeight();
-			float fPercentageToCutOffEachSide = fPercentageToCutOff / 2;
-
-			// generate a rectangle with new texture coordinates
-			RectF fCustomImageRect( 
-				0, 
-				fPercentageToCutOffEachSide,
-				1, 
-				1 - fPercentageToCutOffEachSide );
-			SetCustomImageRect( fCustomImageRect );
-		}
-		m_size = RageVector2( fWidth, fHeight );
-		SetZoom( 1 );
+		return;
 	}
-
-	// restore original XY
-	SetXY( fOriginalX, fOriginalY );
+	// -1 means do nothing because it's the default value and means no
+	// remembered dimensions.
+	if(width == -1 || height == -1)
+	{
+		return;
+	}
+	// The previous implementation was identical to ScaleToClipped's previous
+	// implementation (including the not working correctly part), but without
+	// the fudge factor.  Why was a function named "CropTo" changing the scale
+	// of the sprite?  That just seems strange and counterintuitive to me, so
+	// this implementation doesn't change the scale at all.
+	// Again, this has the caveat that GetWidth doesn't factor in cropping. -Kyz
+	float zw= GetZoomedWidth();
+	float zh= GetZoomedHeight();
+	float xf= width / zw;
+	float yf= height / zh;
+	float xc= (1 - xf) / 2;
+	float yc= (1 - yf) / 2;
+	if(xf > 1)
+	{
+		xc= 0;
+	}
+	if(yf > 1)
+	{
+		yc= 0;
+	}
+	SetCropLeft(xc);
+	SetCropRight(xc);
+	SetCropTop(yc);
+	SetCropBottom(yc);
 }
-// end magic
 
 void Sprite::StretchTexCoords( float fX, float fY )
 {
@@ -1048,7 +1059,7 @@ public:
 			RageTextureID ID( SArg(1) );
 			p->Load( ID );
 		}
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 	static int LoadBackground( T* p, lua_State *L )
 	{
@@ -1069,8 +1080,8 @@ public:
 
 	/* Commands that go in the tweening queue: 
 	 * Commands that take effect immediately (ignoring the tweening queue): */
-	static int customtexturerect( T* p, lua_State *L )	{ p->SetCustomTextureRect( RectF(FArg(1),FArg(2),FArg(3),FArg(4)) ); return 0; }
-	static int SetCustomImageRect( T* p, lua_State *L )	{ p->SetCustomImageRect( RectF(FArg(1),FArg(2),FArg(3),FArg(4)) ); return 0; }
+	static int customtexturerect( T* p, lua_State *L )	{ p->SetCustomTextureRect( RectF(FArg(1),FArg(2),FArg(3),FArg(4)) ); COMMON_RETURN_SELF; }
+	static int SetCustomImageRect( T* p, lua_State *L )	{ p->SetCustomImageRect( RectF(FArg(1),FArg(2),FArg(3),FArg(4)) ); COMMON_RETURN_SELF; }
 	static int SetCustomPosCoords( T* p, lua_State *L )
 	{
 		float coords[8];
@@ -1083,24 +1094,111 @@ public:
 			}
 		}
 		p->SetCustomPosCoords(coords);
-		return 0;
+		COMMON_RETURN_SELF;
 	}
-	static int StopUsingCustomPosCoords( T* p, lua_State *L ) { p->StopUsingCustomPosCoords(); return 0; }
-	static int texcoordvelocity( T* p, lua_State *L )	{ p->SetTexCoordVelocity( FArg(1),FArg(2) ); return 0; }
-	static int scaletoclipped( T* p, lua_State *L )		{ p->ScaleToClipped( FArg(1),FArg(2) ); return 0; }
-	static int CropTo( T* p, lua_State *L )		{ p->CropTo( FArg(1),FArg(2) ); return 0; }
-	static int stretchtexcoords( T* p, lua_State *L )	{ p->StretchTexCoords( FArg(1),FArg(2) ); return 0; }
-	static int addimagecoords( T* p, lua_State *L )		{ p->AddImageCoords( FArg(1),FArg(2) ); return 0; }
-	static int setstate( T* p, lua_State *L )		{ p->SetState( IArg(1) ); return 0; }
+	static int StopUsingCustomPosCoords( T* p, lua_State *L ) { p->StopUsingCustomPosCoords(); COMMON_RETURN_SELF; }
+	static int texcoordvelocity( T* p, lua_State *L )	{ p->SetTexCoordVelocity( FArg(1),FArg(2) ); COMMON_RETURN_SELF; }
+	static int get_use_effect_clock_for_texcoords(T* p, lua_State* L)
+	{
+		lua_pushboolean(L, p->m_use_effect_clock_for_texcoords);
+		return 1;
+	}
+	static int set_use_effect_clock_for_texcoords(T* p, lua_State* L)
+	{
+		p->m_use_effect_clock_for_texcoords= BArg(1);
+		COMMON_RETURN_SELF;
+	}
+	static int scaletoclipped( T* p, lua_State *L )		{ p->ScaleToClipped( FArg(1),FArg(2) ); COMMON_RETURN_SELF; }
+	static int CropTo( T* p, lua_State *L )		{ p->CropTo( FArg(1),FArg(2) ); COMMON_RETURN_SELF; }
+	static int stretchtexcoords( T* p, lua_State *L )	{ p->StretchTexCoords( FArg(1),FArg(2) ); COMMON_RETURN_SELF; }
+	static int addimagecoords( T* p, lua_State *L )		{ p->AddImageCoords( FArg(1),FArg(2) ); COMMON_RETURN_SELF; }
+	static int setstate( T* p, lua_State *L )		{ p->SetState( IArg(1) ); COMMON_RETURN_SELF; }
 	static int GetState( T* p, lua_State *L )		{ lua_pushnumber( L, p->GetState() ); return 1; }
+	static int SetStateProperties(T* p, lua_State* L)
+	{
+		// States table example:
+		// {{Frame= 0, Delay= .016, {0, 0}, {.25, .25}}}
+		// Each element in the States table must have a Frame and a Delay.
+		// Frame is optional, defaulting to 0.
+		// Delay is optional, defaulting to 0.
+		// The two tables in the state are the upper left and lower right and are
+		// optional.
+		if(!lua_istable(L, 1))
+		{
+			luaL_error(L, "State properties must be in a table.");
+		}
+		vector<Sprite::State> new_states;
+		size_t num_states= lua_objlen(L, 1);
+		if(num_states == 0)
+		{
+			luaL_error(L, "A Sprite cannot have zero states.");
+		}
+		for(size_t s= 0; s < num_states; ++s)
+		{
+			Sprite::State new_state;
+			lua_rawgeti(L, 1, s+1);
+			lua_getfield(L, -1, "Frame");
+			int frame_index= 0;
+			if(lua_isnumber(L, -1))
+			{
+				frame_index= IArg(-1);
+				if(frame_index < 0 || frame_index >= p->GetTexture()->GetNumFrames())
+				{
+					luaL_error(L, "Frame index out of range 0-%d.",
+						p->GetTexture()->GetNumFrames()-1);
+				}
+			}
+			new_state.rect= *p->GetTexture()->GetTextureCoordRect(frame_index);
+			lua_pop(L, 1);
+			lua_getfield(L, -1, "Delay");
+			if(lua_isnumber(L, -1))
+			{
+				new_state.fDelay= FArg(-1);
+			}
+			lua_pop(L, 1);
+			RectF r= new_state.rect;
+			lua_rawgeti(L, -1, 1);
+			if(lua_istable(L, -1))
+			{
+				lua_rawgeti(L, -1, 1);
+				// I have no idea why the points are from 0 to 1 and make it use only
+				// a portion of the state.  This is just copied from LoadFromNode.
+				// -Kyz
+				new_state.rect.left= SCALE(FArg(-1), 0.0f, 1.0f, r.left, r.right);
+				lua_pop(L, 1);
+				lua_rawgeti(L, -1, 2);
+				new_state.rect.top= SCALE(FArg(-1), 0.0f, 1.0f, r.top, r.bottom);
+				lua_pop(L, 1);
+			}
+			lua_pop(L, 1);
+			lua_rawgeti(L, -1, 2);
+			if(lua_istable(L, -1))
+			{
+				lua_rawgeti(L, -1, 1);
+				// I have no idea why the points are from 0 to 1 and make it use only
+				// a portion of the state.  This is just copied from LoadFromNode.
+				// -Kyz
+				new_state.rect.right= SCALE(FArg(-1), 0.0f, 1.0f, r.left, r.right);
+				lua_pop(L, 1);
+				lua_rawgeti(L, -1, 2);
+				new_state.rect.bottom= SCALE(FArg(-1), 0.0f, 1.0f, r.top, r.bottom);
+				lua_pop(L, 1);
+			}
+			lua_pop(L, 1);
+			new_states.push_back(new_state);
+			lua_pop(L, 1);
+		}
+		p->SetStateProperties(new_states);
+		COMMON_RETURN_SELF;
+	}
 	static int GetAnimationLengthSeconds( T* p, lua_State *L ) { lua_pushnumber( L, p->GetAnimationLengthSeconds() ); return 1; }
-	static int SetSecondsIntoAnimation( T* p, lua_State *L )	{ p->SetSecondsIntoAnimation(FArg(0)); return 0; }
+	static int SetSecondsIntoAnimation( T* p, lua_State *L )	{ p->SetSecondsIntoAnimation(FArg(0)); COMMON_RETURN_SELF; }
 	static int SetTexture( T* p, lua_State *L )
 	{
 		RageTexture *pTexture = Luna<RageTexture>::check(L, 1);
 		pTexture = TEXTUREMAN->CopyTexture( pTexture );
 		p->SetTexture( pTexture );
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 	static int GetTexture( T* p, lua_State *L )
 	{
@@ -1115,10 +1213,20 @@ public:
 	{
 		EffectMode em = Enum::Check<EffectMode>(L, 1);
 		p->SetEffectMode( em );
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 	static int GetNumStates( T* p, lua_State *L ) { lua_pushnumber( L, p->GetNumStates() ); return 1; }
-	static int SetAllStateDelays( T* p, lua_State *L ) { p->SetAllStateDelays(FArg(1)); return 0; }
+	static int SetAllStateDelays( T* p, lua_State *L )
+	{
+		p->SetAllStateDelays(FArg(-1));
+		COMMON_RETURN_SELF;
+	}
+	DEFINE_METHOD(GetDecodeMovie, m_DecodeMovie);
+	static int SetDecodeMovie(T* p, lua_State *L)
+	{
+		p->m_DecodeMovie= BArg(1);
+		COMMON_RETURN_SELF;
+	}
 
 	LunaSprite()
 	{
@@ -1130,12 +1238,15 @@ public:
 		ADD_METHOD( SetCustomPosCoords );
 		ADD_METHOD( StopUsingCustomPosCoords );
 		ADD_METHOD( texcoordvelocity );
+		ADD_METHOD(get_use_effect_clock_for_texcoords);
+		ADD_METHOD(set_use_effect_clock_for_texcoords);
 		ADD_METHOD( scaletoclipped );
 		ADD_METHOD( CropTo );
 		ADD_METHOD( stretchtexcoords );
 		ADD_METHOD( addimagecoords );
 		ADD_METHOD( setstate );
 		ADD_METHOD( GetState );
+		ADD_METHOD( SetStateProperties );
 		ADD_METHOD( GetAnimationLengthSeconds );
 		ADD_METHOD( SetSecondsIntoAnimation );
 		ADD_METHOD( SetTexture );
@@ -1143,6 +1254,8 @@ public:
 		ADD_METHOD( SetEffectMode );
 		ADD_METHOD( GetNumStates );
 		ADD_METHOD( SetAllStateDelays );
+		ADD_METHOD(GetDecodeMovie);
+		ADD_METHOD(SetDecodeMovie);
 	}
 };
 

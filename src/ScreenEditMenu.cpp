@@ -32,11 +32,19 @@ REGISTER_SCREEN_CLASS( ScreenEditMenu );
 void ScreenEditMenu::Init()
 {
 	// HACK: Disable any style set by the editor.
-	GAMESTATE->m_pCurStyle.Set( NULL );
+	GAMESTATE->SetCurrentStyle( NULL, PLAYER_INVALID );
 
 	// Enable all players.
 	FOREACH_PlayerNumber( pn )
 		GAMESTATE->JoinPlayer( pn );
+
+	// Edit mode DOES NOT WORK if the master player is not player 1.  The same
+	// is true of various parts of this poorly designed screen. -Kyz
+	if(GAMESTATE->GetMasterPlayerNumber() != PLAYER_1)
+	{
+		LOG->Warn("Master player number was not player 1, forcing it to player 1 so that edit mode will work.  If playing in edit mode doesn't work, this might be related.");
+		GAMESTATE->SetMasterPlayerNumber(PLAYER_1);
+	}
 
 	ScreenWithMenuElements::Init();
 
@@ -56,6 +64,16 @@ void ScreenEditMenu::Init()
 	LOAD_ALL_COMMANDS_AND_SET_XY_AND_ON_COMMAND( m_textNumStepsLoadedFromProfile );
 	RefreshNumStepsLoadedFromProfile();
 	this->AddChild( &m_textNumStepsLoadedFromProfile );
+	if(!m_Selector.SafeToUse())
+	{
+		m_NoSongsMessage.SetName("NoSongsMessage");
+		m_NoSongsMessage.LoadFromFont(THEME->GetPathF(m_sName, "NoSongsMessage"));
+		LOAD_ALL_COMMANDS_AND_SET_XY_AND_ON_COMMAND(m_NoSongsMessage);
+		AddChild(&m_NoSongsMessage);
+		m_Selector.SetVisible(false);
+		m_textExplanation.SetVisible(false);
+		m_textNumStepsLoadedFromProfile.SetVisible(false);
+	}
 }
 
 void ScreenEditMenu::HandleScreenMessage( const ScreenMessage SM )
@@ -71,6 +89,10 @@ void ScreenEditMenu::HandleScreenMessage( const ScreenMessage SM )
 
 		Song* pSong = GAMESTATE->m_pCurSong;
 		Steps* pStepsToDelete = GAMESTATE->m_pCurSteps[PLAYER_1];
+		FOREACH_PlayerNumber(pn)
+		{
+			GAMESTATE->m_pCurSteps[pn].Set(NULL);
+		}
 		bool bSaveSong = !pStepsToDelete->WasLoadedFromProfile();
 		pSong->DeleteSteps( pStepsToDelete );
 		SONGMAN->Invalidate( pSong );
@@ -161,11 +183,16 @@ static LocalizedString DELETED_AUTOGEN_STEPS	( "ScreenEditMenu", "These steps ar
 static LocalizedString STEPS_WILL_BE_LOST	( "ScreenEditMenu", "These steps will be lost permanently." );
 static LocalizedString CONTINUE_WITH_DELETE	( "ScreenEditMenu", "Continue with delete?" );
 static LocalizedString ENTER_EDIT_DESCRIPTION	( "ScreenEditMenu", "Enter a description for this edit.");
+static LocalizedString INVALID_SELECTION("ScreenEditMenu", "One of the selected things is invalid.  Pick something valid instead.");
 
 bool ScreenEditMenu::MenuStart( const InputEventPlus & )
 {
 	if( IsTransitioning() )
 		return false;
+	if(!m_Selector.SafeToUse())
+	{
+		return false;
+	}
 
 	if( m_Selector.CanGoDown() )
 	{
@@ -182,10 +209,15 @@ bool ScreenEditMenu::MenuStart( const InputEventPlus & )
 //	Difficulty sourceDiff	= m_Selector.GetSelectedSourceDifficulty();
 	Steps* pSourceSteps	= m_Selector.GetSelectedSourceSteps();
 	EditMenuAction action	= m_Selector.GetSelectedAction();
+	if(st == StepsType_Invalid)
+	{
+		ScreenPrompt::Prompt(SM_None, INVALID_SELECTION);
+		return true;
+	}
 
 	GAMESTATE->m_pCurSong.Set( pSong );
 	GAMESTATE->m_pCurCourse.Set( NULL );
-	GAMESTATE->SetCurrentStyle( GAMEMAN->GetEditorStyleForStepsType(st) );
+	GAMESTATE->SetCurrentStyle( GAMEMAN->GetEditorStyleForStepsType(st), PLAYER_INVALID );
 	GAMESTATE->m_pCurSteps[PLAYER_1].Set( pSteps );
 
 	// handle error cases
@@ -241,6 +273,18 @@ bool ScreenEditMenu::MenuStart( const InputEventPlus & )
 		ASSERT( pSteps != NULL );
 		ScreenPrompt::Prompt( SM_None, STEPS_WILL_BE_LOST.GetValue() + "\n\n" + CONTINUE_WITH_DELETE.GetValue(),
 		                      PROMPT_YES_NO, ANSWER_NO );
+		break;
+	case EditMenuAction_LoadAutosave:
+		if(pSong)
+		{
+			FOREACH_PlayerNumber(pn)
+			{
+				GAMESTATE->m_pCurSteps[pn].Set(NULL);
+			}
+			pSong->LoadAutosaveFile();
+			SONGMAN->Invalidate(pSong);
+			SCREENMAN->SendMessageToTopScreen( SM_RefreshSelector );
+		}
 		break;
 	case EditMenuAction_Create:
 		ASSERT( !pSteps );
@@ -320,6 +364,7 @@ bool ScreenEditMenu::MenuStart( const InputEventPlus & )
 		}
 		return true;
 	case EditMenuAction_Delete:
+	case EditMenuAction_LoadAutosave:
 		return true;
 	default:
 		FAIL_M(ssprintf("Invalid edit menu action: %i", action));

@@ -27,8 +27,17 @@ struct StepsTypeAndDifficulty
 	Difficulty cd;
 
 	StepsTypeAndDifficulty( const StepsType &s, const Difficulty &d ) : st( s ), cd( d ) { }
-	bool operator==( const StepsTypeAndDifficulty &stad ) const { return st == stad.st && cd == stad.cd; }
 };
+
+inline bool operator==(StepsTypeAndDifficulty const &lhs, StepsTypeAndDifficulty const &rhs)
+{
+	return lhs.st == rhs.st && lhs.cd == rhs.cd;
+}
+inline bool operator!=(StepsTypeAndDifficulty const &lhs, StepsTypeAndDifficulty const &rhs)
+{
+	return !operator==(lhs,rhs);
+}
+
 static void SetNextCombination()
 {
 	vector<StepsTypeAndDifficulty> v;
@@ -70,7 +79,7 @@ void ScreenOptionsManageCourses::BeginScreen()
 	vector<const Style*> vpStyles;
 	GAMEMAN->GetStylesForGame( GAMESTATE->m_pCurGame, vpStyles );
 	const Style *pStyle = vpStyles[0];
-	GAMESTATE->SetCurrentStyle( pStyle );
+	GAMESTATE->SetCurrentStyle( pStyle, PLAYER_INVALID );
 
 	if( GAMESTATE->m_stEdit == StepsType_Invalid  ||
 	    GAMESTATE->m_cdEdit == Difficulty_Invalid )
@@ -208,7 +217,7 @@ bool ScreenOptionsManageCourses::MenuSelect( const InputEventPlus &input )
 	if( input.type != IET_FIRST_PRESS )
 		return false;
 	SetNextCombination();
-	m_soundDifficultyChanged.Play();
+	m_soundDifficultyChanged.Play(true);
 	return true;
 }
 

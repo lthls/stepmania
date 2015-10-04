@@ -103,9 +103,8 @@ void ScreenEvaluation::Init()
 		StageStats &ss = STATSMAN->m_vPlayedStageStats.back();
 
 		GAMESTATE->m_PlayMode.Set( PLAY_MODE_REGULAR );
-		GAMESTATE->SetCurrentStyle( GAMEMAN->GameAndStringToStyle(GAMEMAN->GetDefaultGame(),"versus") );
+		GAMESTATE->SetCurrentStyle( GAMEMAN->GameAndStringToStyle(GAMEMAN->GetDefaultGame(),"versus"), PLAYER_INVALID );
 		ss.m_playMode = GAMESTATE->m_PlayMode;
-		ss.m_pStyle = GAMESTATE->GetCurrentStyle();
 		ss.m_Stage = Stage_1st;
 		enum_add( ss.m_Stage, rand()%3 );
 		ss.m_EarnedExtraStage = (EarnedExtraStage)(rand() % NUM_EarnedExtraStage);
@@ -120,6 +119,7 @@ void ScreenEvaluation::Init()
 
 		FOREACH_PlayerNumber( p )
 		{
+			ss.m_player[p].m_pStyle = GAMESTATE->GetCurrentStyle(p);
 			if( RandomInt(2) )
 				PO_GROUP_ASSIGN_N( GAMESTATE->m_pPlayerState[p]->m_PlayerOptions, ModsLevel_Stage, m_bTransforms, PlayerOptions::TRANSFORM_ECHO, true );	// show "disqualified"
 			SO_GROUP_ASSIGN( GAMESTATE->m_SongOptions, ModsLevel_Stage, m_fMusicRate, 1.1f );
@@ -258,7 +258,8 @@ void ScreenEvaluation::Init()
 	{
 		if( SUMMARY )
 		{
-			for( unsigned i=0; i<m_pStageStats->m_vpPlayedSongs.size(); i++ )
+			for( size_t i=0; i<m_pStageStats->m_vpPlayedSongs.size()
+						 && i < MAX_SONGS_TO_SHOW; i++ )
 			{
 				Song *pSong = m_pStageStats->m_vpPlayedSongs[i];
 
@@ -397,8 +398,15 @@ void ScreenEvaluation::Init()
 			// todo: convert this to use category names instead of numbers? -aj
 			for( int r=0; r<NUM_SHOWN_RADAR_CATEGORIES; r++ )	// foreach line
 			{
+				float possible= m_pStageStats->m_player[p].m_radarPossible[r];
+				float actual= m_pStageStats->m_player[p].m_radarActual[r];
+				if(possible > 1.0)
+				{
+					actual /= possible;
+					possible /= possible;
+				}
 				m_sprPossibleBar[p][r].Load( THEME->GetPathG(m_sName,ssprintf("BarPossible p%d",p+1)) );
-				m_sprPossibleBar[p][r].SetWidth( m_sprPossibleBar[p][r].GetUnzoomedWidth() * m_pStageStats->m_player[p].m_radarPossible[r] * fDivider );
+				m_sprPossibleBar[p][r].SetWidth( m_sprPossibleBar[p][r].GetUnzoomedWidth() * possible * fDivider );
 				m_sprPossibleBar[p][r].SetName( ssprintf("BarPossible%dP%d",r+1,p+1) );
 				ActorUtil::LoadAllCommands( m_sprPossibleBar[p][r], m_sName );
 				SET_XY( m_sprPossibleBar[p][r] );
@@ -406,7 +414,7 @@ void ScreenEvaluation::Init()
 
 				m_sprActualBar[p][r].Load( THEME->GetPathG(m_sName,ssprintf("BarActual p%d",p+1)) );
 				// should be out of the possible bar, not actual (whatever value that is at)
-				m_sprActualBar[p][r].SetWidth( m_sprPossibleBar[p][r].GetUnzoomedWidth() * m_pStageStats->m_player[p].m_radarActual[r] * fDivider );
+				m_sprActualBar[p][r].SetWidth( m_sprPossibleBar[p][r].GetUnzoomedWidth() * actual * fDivider );
 
 				float value = (float)100 * m_sprActualBar[p][r].GetUnzoomedWidth() / m_sprPossibleBar[p][r].GetUnzoomedWidth();
 				LOG->Trace("Radar bar %d of 5 - %f percent", r,  value);
@@ -417,7 +425,7 @@ void ScreenEvaluation::Init()
 
 				// .99999 is fairly close to 1.00, so we use that.
 				// todo: allow extra commands for AAA/AAAA? -aj
-				if( m_pStageStats->m_player[p].m_radarActual[r] > 0.99999f )
+				if( actual > 0.99999f )
 					m_sprActualBar[p][r].RunCommands( BAR_ACTUAL_MAX_COMMAND );
 				this->AddChild( &m_sprActualBar[p][r] );
 			}
@@ -624,7 +632,9 @@ void ScreenEvaluation::Init()
 	bool bOneHasNewTopRecord = false;
 	bool bOneHasFullW1Combo = false;
 	bool bOneHasFullW2Combo = false;
-
+	bool bOneHasFullW3Combo = false;
+	bool bOneHasFullW4Combo = false;
+	
 	FOREACH_PlayerNumber( p )
 	{
 		if(GAMESTATE->IsPlayerEnabled(p))
@@ -634,6 +644,12 @@ void ScreenEvaluation::Init()
 			{
 				bOneHasNewTopRecord = true;
 			}
+
+			if( m_pStageStats->m_player[p].FullComboOfScore(TNS_W4) )
+				bOneHasFullW4Combo = true;
+
+			if( m_pStageStats->m_player[p].FullComboOfScore(TNS_W3) )
+				bOneHasFullW3Combo = true;
 
 			if( m_pStageStats->m_player[p].FullComboOfScore(TNS_W2) )
 				bOneHasFullW2Combo = true;
@@ -655,9 +671,13 @@ void ScreenEvaluation::Init()
 	{
 		SOUND->PlayOnceFromDir( ANNOUNCER->GetPathTo("evaluation new record") );
 	}
-	else if( (bOneHasFullW1Combo || bOneHasFullW2Combo) )
+	else if( bOneHasFullW4Combo && ANNOUNCER->HasSoundsFor("evaluation full combo W4") )
 	{
-		RString sComboType = bOneHasFullW1Combo ? "W1" : "W2";
+		SOUND->PlayOnceFromDir(ANNOUNCER->GetPathTo("evaluation full combo W4"));
+	}
+	else if( (bOneHasFullW1Combo || bOneHasFullW2Combo || bOneHasFullW3Combo) )
+	{
+		RString sComboType = bOneHasFullW1Combo ? "W1" : ( bOneHasFullW2Combo ? "W2" : "W3" );
 		SOUND->PlayOnceFromDir( ANNOUNCER->GetPathTo("evaluation full combo "+sComboType) );
 	}
 	else
@@ -760,7 +780,7 @@ bool ScreenEvaluation::MenuStart( const InputEventPlus &input )
 	if( IsTransitioning() )
 		return false;
 
-	m_soundStart.Play();
+	m_soundStart.Play(true);
 
 	HandleMenuStart();
 	return true;

@@ -65,6 +65,13 @@ LuaDeclareType( VertAlign );
 /** @brief The bottom vertical alignment constant. */
 #define align_bottom 1.0f
 
+// This is the number of colors in Actor::diffuse.  Actor has multiple
+// diffuse colors so that each edge can be a different color, and the actor
+// is drawn with a gradient between them.
+// I doubt I actually found all the places that touch diffuse and rely on the
+// number of diffuse colors, so change this at your own risk. -Kyz
+#define NUM_DIFFUSE_COLORS 4
+
 // ssc futures:
 /*
 enum EffectAction
@@ -218,13 +225,15 @@ public:
 		 * @brief Four values making up the diffuse in this TweenState.
 		 *
 		 * 0 = UpperLeft, 1 = UpperRight, 2 = LowerLeft, 3 = LowerRight */
-		RageColor	diffuse[4];
+		RageColor	diffuse[NUM_DIFFUSE_COLORS];
 		/** @brief The glow color for this TweenState. */
 		RageColor	glow;
 		/** @brief A magical value that nobody really knows the use for. ;) */
 		float		aux;
 	};
 
+	// PartiallyOpaque broken out of Draw for reuse and clarity.
+	bool PartiallyOpaque();
 	/**
 	 * @brief Calls multiple functions for drawing the Actors.
 	 *
@@ -272,7 +281,7 @@ public:
 	virtual void Update( float fDeltaTime );		// this can short circuit UpdateInternal
 	virtual void UpdateInternal( float fDeltaTime );	// override this
 	void UpdateTweening( float fDeltaTime );
-	// These next functions should all be overridden by a derived class that has its own tweening states to handl.
+	// These next functions should all be overridden by a derived class that has its own tweening states to handle.
 	virtual void SetCurrentTweenStart() {}
 	virtual void EraseHeadTween() {}
 	virtual void UpdatePercentThroughTween( float PercentThroughTween ) {}
@@ -297,6 +306,14 @@ public:
 	 * @brief Retrieve the Actor's lineage.
 	 * @return the Actor's lineage. */
 	RString GetLineage() const;
+
+	void SetFakeParent(Actor* mailman) { m_FakeParent= mailman; }
+	Actor* GetFakeParent() { return m_FakeParent; }
+
+	void AddWrapperState();
+	void RemoveWrapperState(size_t i);
+	Actor* GetWrapperState(size_t i);
+	size_t GetNumWrapperStates() const { return m_WrapperStates.size(); }
 
 	/**
 	 * @brief Retrieve the Actor's x position.
@@ -433,8 +450,8 @@ public:
 
 	void SetGlobalDiffuseColor( RageColor c );
 
-	virtual void SetDiffuse( RageColor c )		{ for(int i=0; i<4; i++) DestTweenState().diffuse[i] = c; };
-	virtual void SetDiffuseAlpha( float f )		{ for(int i = 0; i < 4; ++i) { RageColor c = GetDiffuses( i ); c.a = f; SetDiffuses( i, c ); } }
+	virtual void SetDiffuse( RageColor c )		{ for(int i=0; i<NUM_DIFFUSE_COLORS; i++) DestTweenState().diffuse[i] = c; };
+	virtual void SetDiffuseAlpha( float f )		{ for(int i = 0; i < NUM_DIFFUSE_COLORS; ++i) { RageColor c = GetDiffuses( i ); c.a = f; SetDiffuses( i, c ); } }
 	float GetCurrentDiffuseAlpha() const		{ return m_current.diffuse[0].a; }
 	void SetDiffuseColor( RageColor c );
 	void SetDiffuses( int i, RageColor c )		{ DestTweenState().diffuse[i] = c; };
@@ -509,9 +526,12 @@ public:
 	// todo: account for SSC_FUTURES by adding an effect as an arg to each one -aj
 	void SetEffectColor1( RageColor c )		{ m_effectColor1 = c; }
 	void SetEffectColor2( RageColor c )		{ m_effectColor2 = c; }
+	void RecalcEffectPeriod();
 	void SetEffectPeriod( float fTime );
-	float GetEffectPeriod() const;
-	void SetEffectTiming( float fRampUp, float fAtHalf, float fRampDown, float fAtZero );
+	float GetEffectPeriod() const { return m_effect_period; }
+	bool SetEffectTiming(float ramp_toh, float at_half, float ramp_tof,
+		float at_zero, float at_full, RString& err);
+	bool SetEffectHoldAtFull(float haf, RString& err);
 	void SetEffectOffset( float fTime )		{ m_fEffectOffset = fTime; }
 	void SetEffectClock( EffectClock c )		{ m_EffectClock = c; }
 	void SetEffectClockString( const RString &s );	// convenience
@@ -519,6 +539,7 @@ public:
 	void SetEffectMagnitude( RageVector3 vec )	{ m_vEffectMagnitude = vec; }
 	RageVector3 GetEffectMagnitude() const		{ return m_vEffectMagnitude; }
 
+	void ResetEffectTimeIfDifferent(Effect new_effect);
 	void SetEffectDiffuseBlink( float fEffectPeriodSeconds, RageColor c1, RageColor c2 );
 	void SetEffectDiffuseShift( float fEffectPeriodSeconds, RageColor c1, RageColor c2 );
 	void SetEffectDiffuseRamp( float fEffectPeriodSeconds, RageColor c1, RageColor c2 );
@@ -570,7 +591,7 @@ public:
 	virtual void PushContext( lua_State *L );
 
 	// Named commands
-	void AddCommand( const RString &sCmdName, apActorCommands apac );
+	void AddCommand( const RString &sCmdName, apActorCommands apac, bool warn= true );
 	bool HasCommand( const RString &sCmdName ) const;
 	const apActorCommands *GetCommand( const RString &sCommandName ) const;
 	void PlayCommand( const RString &sCommandName ) { HandleMessage( Message(sCommandName) ); } // convenience
@@ -592,6 +613,7 @@ public:
 	virtual float GetAnimationLengthSeconds() const { return 0; }
 	virtual void SetSecondsIntoAnimation( float ) {}
 	virtual void SetUpdateRate( float ) {}
+	virtual float GetUpdateRate() { return 1.0f; }
 
 	HiddenPtr<LuaClass> m_pLuaInstance;
 
@@ -600,6 +622,13 @@ protected:
 	RString m_sName;
 	/** @brief the current parent of this Actor if it exists. */
 	Actor *m_pParent;
+	// m_FakeParent exists to provide a way to render the actor inside another's
+	// state without making that actor the parent.  It's like having multiple
+	// parents. -Kyz
+	Actor* m_FakeParent;
+	// WrapperStates provides a way to wrap the actor inside ActorFrames,
+	// applicable to any actor, not just ones the theme creates.
+	vector<Actor*> m_WrapperStates;
 
 	/** @brief Some general information about the Tween. */
 	struct TweenInfo
@@ -660,11 +689,16 @@ protected:
 	float m_fEffectDelta;
 
 	// units depend on m_EffectClock
-	float m_fEffectRampUp;
-	float m_fEffectHoldAtHalf;
-	float m_fEffectRampDown;
-	float m_fEffectHoldAtZero;
+	float m_effect_ramp_to_half;
+	float m_effect_hold_at_half;
+	float m_effect_ramp_to_full;
+	float m_effect_hold_at_full;
+	float m_effect_hold_at_zero;
 	float m_fEffectOffset;
+	// Anything changing ramp_up, hold_at_half, ramp_down, or hold_at_zero must
+	// also update the period so the period is only calculated when changed.
+	// -Kyz
+	float m_effect_period;
 	EffectClock m_EffectClock;
 
 	/* This can be used in lieu of the fDeltaTime parameter to Update() to

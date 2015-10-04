@@ -39,6 +39,7 @@
 #include "ThemeManager.h"
 #include "NoteSkinManager.h"
 #include "PrefsManager.h"
+#include "Song.h"
 #include "SongManager.h"
 #include "CharacterManager.h"
 #include "GameState.h"
@@ -67,6 +68,11 @@
 #include "GameLoop.h"
 #include "SpecialFiles.h"
 #include "Profile.h"
+#include "ActorUtil.h"
+
+#ifdef HAVE_VERSION_INFO
+#include "ver.h"
+#endif
 
 #if defined(WIN32)
 #include <windows.h>
@@ -87,6 +93,9 @@ void StepMania::GetPreferredVideoModeParams( VideoModeParams &paramsOut )
 		//float fRatio = PREFSMAN->m_iDisplayHeight;
 		//iWidth = PREFSMAN->m_iDisplayHeight * fRatio;
 		iWidth = static_cast<int>(ceilf(PREFSMAN->m_iDisplayHeight * PREFSMAN->m_fDisplayAspectRatio));
+		// ceilf causes the width to come out odd when it shouldn't.
+		// 576 * 1.7778 = 1024.0128, which is rounded to 1025. -Kyz
+		iWidth-= iWidth % 2;
 	}
 
 	paramsOut = VideoModeParams(
@@ -167,13 +176,20 @@ bool StepMania::GetHighResolutionTextures()
 	case HighResolutionTextures_Auto:
 		{
 			int height = PREFSMAN->m_iDisplayHeight;
-			return height > 480;
+			return height > THEME->GetMetricI("Common", "ScreenHeight");
 		}
 	case HighResolutionTextures_ForceOn:
 		return true;
 	case HighResolutionTextures_ForceOff:
 		return false;
 	}
+}
+
+static void update_centering()
+{
+	DISPLAY->ChangeCentering(
+		PREFSMAN->m_iCenterImageTranslateX, PREFSMAN->m_iCenterImageTranslateY,
+		PREFSMAN->m_fCenterImageAddWidth, PREFSMAN->m_fCenterImageAddHeight);
 }
 
 static void StartDisplay()
@@ -183,11 +199,7 @@ static void StartDisplay()
 
 	DISPLAY = CreateDisplay();
 
-	DISPLAY->ChangeCentering(
-		PREFSMAN->m_iCenterImageTranslateX,
-		PREFSMAN->m_iCenterImageTranslateY,
-		PREFSMAN->m_fCenterImageAddWidth,
-		PREFSMAN->m_fCenterImageAddHeight );
+	update_centering();
 
 	TEXTUREMAN	= new RageTextureManager;
 	TEXTUREMAN->SetPrefs(
@@ -219,11 +231,7 @@ void StepMania::ApplyGraphicOptions()
 	if( sError != "" )
 		RageException::Throw( "%s", sError.c_str() );
 
-	DISPLAY->ChangeCentering(
-		PREFSMAN->m_iCenterImageTranslateX,
-		PREFSMAN->m_iCenterImageTranslateY,
-		PREFSMAN->m_fCenterImageAddWidth,
-		PREFSMAN->m_fCenterImageAddHeight );
+	update_centering();
 
 	bNeedReload |= TEXTUREMAN->SetPrefs(
 		RageTextureManagerPrefs(
@@ -346,9 +354,17 @@ void StepMania::ResetGame()
 ThemeMetric<RString>	INITIAL_SCREEN	("Common","InitialScreen");
 RString StepMania::GetInitialScreen()
 {
-	if( PREFSMAN->m_sTestInitialScreen.Get() != "" )
+	if(PREFSMAN->m_sTestInitialScreen.Get() != "" &&
+		SCREENMAN->IsScreenNameValid(PREFSMAN->m_sTestInitialScreen))
+	{
 		return PREFSMAN->m_sTestInitialScreen;
-	return INITIAL_SCREEN.GetValue();
+	}
+	RString screen_name= INITIAL_SCREEN.GetValue();
+	if(!SCREENMAN->IsScreenNameValid(screen_name))
+	{
+		screen_name= "ScreenInitialScreenIsInvalid";
+	}
+	return screen_name;
 }
 ThemeMetric<RString>	SELECT_MUSIC_SCREEN	("Common","SelectMusicScreen");
 RString StepMania::GetSelectMusicScreen()
@@ -820,14 +836,30 @@ void StepMania::InitializeCurrentGame( const Game* g )
 
 	RString sAnnouncer = PREFSMAN->m_sAnnouncer;
 	RString sTheme = PREFSMAN->m_sTheme;
+	RString sGametype = GAMESTATE->GetCurrentGame()->m_szName;
 	RString sLanguage = PREFSMAN->m_sLanguage;
 
 	if( sAnnouncer.empty() )
 		sAnnouncer = GAMESTATE->GetCurrentGame()->m_szName;
+	RString argCurGame;
+	if( GetCommandlineArgument( "game", &argCurGame) && argCurGame != sGametype )
+	{
+		Game const* new_game= GAMEMAN->StringToGame(argCurGame);
+		if(new_game == NULL)
+		{
+			LOG->Warn("%s is not a known game type, ignoring.", argCurGame.c_str());
+		}
+		else
+		{
+			PREFSMAN->SetCurrentGame(sGametype);
+			GAMESTATE->SetCurGame(new_game);
+		}
+	}
+	
 	// It doesn't matter if sTheme is blank or invalid, THEME->STAL will set
 	// a selectable theme for us. -Kyz
 
-	// process theme and language command line arguments;
+	// process gametype, theme and language command line arguments;
 	// these change the preferences in order for transparent loading -aj
 	RString argTheme;
 	if( GetCommandlineArgument(	"theme",&argTheme) && argTheme != sTheme )
@@ -887,18 +919,12 @@ static void MountTreeOfZips( const RString &dir )
 	}
 }
 
-#if defined(HAVE_VERSION_INFO)
-extern unsigned long version_num;
-extern const char *const version_date;
-extern const char *const version_time;
-#endif
-
 static void WriteLogHeader()
 {
-	LOG->Info( PRODUCT_ID_VER );
+	LOG->Info("%s%s", PRODUCT_FAMILY, product_version);
 
 #if defined(HAVE_VERSION_INFO)
-	LOG->Info( "Compiled %s @ %s (build %lu)", version_date, version_time, version_num );
+	LOG->Info( "Compiled %s @ %s (build %s)", version_date, version_time, ::sm_version_git_hash);
 #endif
 
 	time_t cur_time;
@@ -938,7 +964,7 @@ static void ApplyLogPreferences()
 
 static LocalizedString COULDNT_OPEN_LOADING_WINDOW( "LoadingWindow", "Couldn't open any loading windows." );
 
-int main(int argc, char* argv[])
+int sm_main(int argc, char* argv[])
 {
 	RageThreadRegister thread( "Main thread" );
 	RageException::SetCleanupHandler( HandleException );
@@ -950,6 +976,11 @@ int main(int argc, char* argv[])
 	HOOKS->Init();
 
 	LUA		= new LuaManager;
+	HOOKS->RegisterWithLua();
+
+	// Initialize the file extension type lists so everything can ask ActorUtil
+	// what the type of a file is.
+	ActorUtil::InitFileTypeLists();
 
 	// Almost everything uses this to read and write files.  Load this early.
 	FILEMAN = new RageFileManager( argv[0] );
@@ -1049,6 +1080,7 @@ int main(int argc, char* argv[])
 	CommandLineActions::Handle(pLoadingWindow);
 
 	// Aldo: Check for updates here!
+#if 0
 	if( /* PREFSMAN->m_bUpdateCheckEnable (do this later) */ 0 )
 	{
 		// TODO - Aldo_MX: Use PREFSMAN->m_iUpdateCheckIntervalSeconds & PREFSMAN->m_iUpdateCheckLastCheckedSecond
@@ -1084,7 +1116,7 @@ int main(int argc, char* argv[])
 			LOG->Info( "Unable to check for updates. The server might be offline." );
 		}
 	}
-
+#endif
 	if( GetCommandlineArgument("dopefish") )
 		GAMESTATE->m_bDopefish = true;
 
@@ -1442,7 +1474,7 @@ bool HandleGlobalInputs( const InputEventPlus &input )
 								|| INPUTFILTER->IsBeingPressed( DeviceInput(DEVICE_KEYBOARD, KEY_RSHIFT) ) );
 		bool bSaveCompressed = !bHoldingShift;
 		RageTimer timer;
-		StepMania::SaveScreenshot( "Screenshots/", bSaveCompressed, false, "", "" );
+		StepMania::SaveScreenshot("Screenshots/", bSaveCompressed, false, "", "");
 		LOG->Trace( "Screenshot took %f seconds.", timer.GetDeltaTime() );
 		return true; // handled
 	}
@@ -1563,7 +1595,6 @@ void HandleInputEvents(float fDeltaTime)
 		if( GAMESTATE->IsEventMode() &&
 			CodeDetector::EnteredCode(input.GameI.controller,CODE_BACK_IN_EVENT_MODE) )
 		{
-			input.pn = PLAYER_1;
 			input.MenuI = GAME_BUTTON_BACK;
 		}
 
@@ -1618,6 +1649,13 @@ void LuaFunc_Register_SaveScreenshot(lua_State *L);
 void LuaFunc_Register_SaveScreenshot(lua_State *L)
 { lua_register(L, "SaveScreenshot", LuaFunc_SaveScreenshot); }
 REGISTER_WITH_LUA_FUNCTION(LuaFunc_Register_SaveScreenshot);
+
+static int LuaFunc_update_centering(lua_State* L)
+{
+	update_centering();
+	return 0;
+}
+LUAFUNC_REGISTER_COMMON(update_centering);
 
 /*
  * (c) 2001-2004 Chris Danford, Glenn Maynard

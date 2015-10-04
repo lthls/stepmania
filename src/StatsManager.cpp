@@ -52,7 +52,6 @@ static StageStats AccumPlayedStageStats( const vector<StageStats>& vss )
 
 	if( !vss.empty() )
 	{
-		ssreturn.m_pStyle = vss[0].m_pStyle;
 		ssreturn.m_playMode = vss[0].m_playMode;
 	}
 
@@ -108,10 +107,9 @@ void StatsManager::CalcAccumPlayedStageStats()
 void AddPlayerStatsToProfile( Profile *pProfile, const StageStats &ss, PlayerNumber pn )
 {
 	ss.AssertValid( pn );
-	CHECKPOINT;
 
 	StyleID sID;
-	sID.FromStyle( ss.m_pStyle );
+	sID.FromStyle( ss.m_player[pn].m_pStyle );
 
 	ASSERT( (int) ss.m_vpPlayedSongs.size() == ss.m_player[pn].m_iStepsPlayed );
 	for( int i=0; i<ss.m_player[pn].m_iStepsPlayed; i++ )
@@ -210,13 +208,10 @@ void StatsManager::CommitStatsToProfiles( const StageStats *pSS )
 	pMachineProfile->m_iTotalGameplaySeconds += iGameplaySeconds;
 	pMachineProfile->m_iNumTotalSongsPlayed += pSS->m_vpPlayedSongs.size();
 
-	CHECKPOINT;
 	if( !GAMESTATE->m_bMultiplayer )	// FIXME
 	{
 		FOREACH_HumanPlayer( pn )
 		{
-			CHECKPOINT;
-
 			Profile* pPlayerProfile = PROFILEMAN->GetProfile( pn );
 			if( pPlayerProfile )
 			{
@@ -232,8 +227,6 @@ void StatsManager::CommitStatsToProfiles( const StageStats *pSS )
 				LOG->Trace("Adding stats to player profile...");
 				AddPlayerStatsToProfile( pPlayerProfile, *pSS, pn );
 			}
-
-			CHECKPOINT;
 		}
 	}
 

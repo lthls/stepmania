@@ -16,6 +16,7 @@ PlayerState::PlayerState()
 
 void PlayerState::Reset()
 {
+	m_NotefieldZoom= 1.0f;
 	m_PlayerOptions.Init();
 
 	m_fLastDrawnBeat = -100;
@@ -94,6 +95,15 @@ void PlayerState::Update( float fDelta )
 
 	if( m_fSecondsUntilAttacksPhasedOut > 0 )
 		m_fSecondsUntilAttacksPhasedOut = max( 0, m_fSecondsUntilAttacksPhasedOut - fDelta );
+}
+
+void PlayerState::SetPlayerNumber(PlayerNumber pn)
+{
+	m_PlayerNumber = pn;
+	FOREACH_ENUM(ModsLevel, ml)
+	{
+		m_PlayerOptions.Get(ml).m_pn= pn;
+	}
 }
 
 void PlayerState::ResetToDefaultPlayerOptions( ModsLevel l )
@@ -213,6 +223,12 @@ const TimingData &PlayerState::GetDisplayedTiming() const
 class LunaPlayerState: public Luna<PlayerState>
 {
 public:
+	static int ApplyPreferredOptionsToOtherLevels(T* p, lua_State* L)
+	{
+		p->m_PlayerOptions.Assign(ModsLevel_Preferred,
+			p->m_PlayerOptions.Get(ModsLevel_Preferred));
+		return 0;
+	}
 	DEFINE_METHOD( GetPlayerNumber, m_PlayerNumber );
 	static int GetSongPosition( T* p, lua_State *L )
 	{
@@ -260,6 +276,7 @@ public:
 
 	LunaPlayerState()
 	{
+		ADD_METHOD( ApplyPreferredOptionsToOtherLevels );
 		ADD_METHOD( GetPlayerNumber );
 		ADD_METHOD( GetMultiPlayerNumber );
 		ADD_METHOD( GetPlayerController );

@@ -98,20 +98,9 @@ void WheelBase::BeginScreen()
 	m_WheelState = STATE_SELECTING;
 }
 
-void WheelBase::SetItemPosition( Actor &item, float fPosOffsetsFromMiddle )
+void WheelBase::SetItemPosition(Actor &item, int item_index, float offset_from_middle)
 {
-	/* Don't supply and item index or num items. The number of items can be so
-	 * large that transforms that depend on such large numbers are likely to break. */
-	int iItemIndex = 0; // dummy
-	int iNumItems = 1; // dummy
-
-	Actor::TweenState ts = m_exprItemTransformFunction.GetTransformCached( fPosOffsetsFromMiddle, iItemIndex, iNumItems );
-
-	// Round to achieve pixel alignment. Any benefit to moving this to Lua? -Chris
-	ts.pos.x = roundf( ts.pos.x );
-	ts.pos.y = roundf( ts.pos.y );
-	ts.pos.z = roundf( ts.pos.z );
-
+	Actor::TweenState ts = m_exprItemTransformFunction.GetTransformCached(offset_from_middle, item_index, NUM_WHEEL_ITEMS);
 	item.DestTweenState() = ts;
 }
 
@@ -152,7 +141,7 @@ void WheelBase::SetPositions()
 		else
 			pDisplay->SetVisible( true );
 
-		SetItemPosition( *pDisplay, fOffsetFromSelection );
+		SetItemPosition(*pDisplay, i, fOffsetFromSelection);
 	}
 }
 
@@ -233,14 +222,14 @@ void WheelBase::Update( float fDeltaTime )
 			ChangeMusic( m_Moving );
 
 			if( PREFSMAN->m_iMusicWheelSwitchSpeed < MAX_WHEEL_SOUND_SPEED )
-				m_soundChangeMusic.Play();
+				m_soundChangeMusic.Play(true);
 		}
 
 		if( PREFSMAN->m_iMusicWheelSwitchSpeed >= MAX_WHEEL_SOUND_SPEED &&
 			m_MovingSoundTimer.PeekDeltaTime() >= 1.0f / MAX_WHEEL_SOUND_SPEED )
 		{
 			m_MovingSoundTimer.GetDeltaTime();
-			m_soundChangeMusic.Play();
+			m_soundChangeMusic.Play(true);
 		}
 	}
 	else
@@ -290,27 +279,26 @@ bool WheelBase::Select()	// return true if this selection can end the screen
 	{
 	case WheelItemDataType_Generic:
 		m_LastSelection = m_CurWheelItemData[m_iSelection];
-		break;
+		return true;
 	case WheelItemDataType_Section:
 		{
 			RString sThisItemSectionName = m_CurWheelItemData[m_iSelection]->m_sText;
 			if( m_sExpandedSectionName == sThisItemSectionName ) // already expanded
 			{
 				SetOpenSection( "" ); // collapse it
-				m_soundCollapse.Play();
+				m_soundCollapse.Play(true);
 			}
 			else // already collapsed
 			{
 				SetOpenSection( sThisItemSectionName ); // expand it
-				m_soundExpand.Play();
+				m_soundExpand.Play(true);
 			}
 		}
-		break;
+		// Opening/closing sections cannot end the screen
+		return false;
 	default:
-		break;
+		return true;
 	}
-
-	return true;
 }
 
 WheelItemBaseData* WheelBase::GetItem( unsigned int iIndex )
@@ -358,7 +346,7 @@ void WheelBase::ChangeMusicUnlessLocked( int n )
 		{
 			int iSign = n/abs(n);
 			m_fLockedWheelVelocity = iSign*LOCKED_INITIAL_VELOCITY;
-			m_soundLocked.Play();
+			m_soundLocked.Play(true);
 		}
 		return;
 	}
@@ -377,7 +365,7 @@ void WheelBase::Move(int n)
 		{
 			int iSign = n/abs(n);
 			m_fLockedWheelVelocity = iSign*LOCKED_INITIAL_VELOCITY;
-			m_soundLocked.Play();
+			m_soundLocked.Play(true);
 		}
 		return;
 	}
@@ -442,7 +430,7 @@ void WheelBase::ChangeMusic( int iDist )
 
 	/* If we're moving automatically, don't play this; it'll be called in Update. */
 	if(!IsMoving())
-		m_soundChangeMusic.Play();
+		m_soundChangeMusic.Play(true);
 }
 
 void WheelBase::RebuildWheelItems( int iDist )
@@ -526,7 +514,7 @@ int WheelBase::FirstVisibleIndex()
 class LunaWheelBase: public Luna<WheelBase>
 {
 public:
-	static int Move( T* p, lua_State *L ){ p->Move( IArg(1) ); return 0; }
+	static int Move( T* p, lua_State *L ){ p->Move( IArg(1) ); COMMON_RETURN_SELF; }
 	static int GetWheelItem( T* p, lua_State *L )
 	{
 		int iItem = IArg(1);
@@ -539,11 +527,10 @@ public:
 		return 1;
 	}
 	static int IsSettled( T* p, lua_State *L ){ lua_pushboolean( L, p->IsSettled() ); return 1; }
-	static int SetOpenSection( T* p, lua_State *L ){ p->SetOpenSection( SArg(1) ); return 0; }
+	static int SetOpenSection( T* p, lua_State *L ){ p->SetOpenSection( SArg(1) ); COMMON_RETURN_SELF; }
 	static int GetCurrentIndex( T* p, lua_State *L ){ lua_pushnumber( L, p->GetCurrentIndex() ); return 1; }
 	static int GetNumItems( T* p, lua_State *L ){ lua_pushnumber( L, p->GetNumItems() ); return 1; }
 	// evil shit
-	//static int Move( T* p, lua_State *L ){ p->Move( IArg(1) ); return 0; }
 	//static int ChangeMusic( T* p, lua_State *L ){ p->ChangeMusicUnlessLocked( IArg(1) ); return 0; }
 
 	DEFINE_METHOD( GetSelectedType,		GetSelectedType() )

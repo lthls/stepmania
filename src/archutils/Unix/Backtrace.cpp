@@ -2,16 +2,24 @@
 #include "Backtrace.h"
 #include "RageUtil.h"
 
+#if defined(HAVE_UNISTD_H)
 #include <unistd.h>
+#endif
 #include <cstdlib>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <cerrno>
+#if defined(HAVE_FCNTL_H)
 #include <fcntl.h>
+#endif
 
 #if defined(BACKTRACE_METHOD_X86_LINUX)
 #include "archutils/Common/PthreadHelpers.h"
+
+#if defined(LINUX) && !defined(ANDROID)
+#include <limits.h>
+#endif
 
 static const char *itoa(unsigned n)
 {

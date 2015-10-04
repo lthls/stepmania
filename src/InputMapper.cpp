@@ -413,6 +413,21 @@ static const AutoMappings g_AutoMappings[] =
 	   ),
 	   AutoMappings(
 		"dance",
+		"USB DancePad",
+		"D-Force Dance Pad",
+		AutoMappingEntry( 0, JOY_BUTTON_1,     DANCE_BUTTON_UP,	       false ),
+		AutoMappingEntry( 0, JOY_BUTTON_2,     DANCE_BUTTON_DOWN,      false ),
+		AutoMappingEntry( 0, JOY_BUTTON_3,     DANCE_BUTTON_LEFT,      false ),
+		AutoMappingEntry( 0, JOY_BUTTON_4,     DANCE_BUTTON_RIGHT,     false ),
+		AutoMappingEntry( 0, JOY_BUTTON_7,      DANCE_BUTTON_UPLEFT,    false ),
+		AutoMappingEntry( 0, JOY_BUTTON_8,      DANCE_BUTTON_UPRIGHT,   false ),
+		//AutoMappingEntry{ 0, JOY_BUTTON_1,    DANCE_BUTTON_DOWNLEFT,  false ),
+		//AutoMappingEntry{ 0, JOY_BUTTON_4,    DANCE_BUTTON_DOWNRIGHT, false ),
+		AutoMappingEntry( 0, JOY_BUTTON_9,      GAME_BUTTON_BACK,       false ),
+		AutoMappingEntry( 0, JOY_BUTTON_10,     GAME_BUTTON_START,      false )
+	   ),
+	   AutoMappings(
+		"dance",
 		"Dual USB Vibration Joystick",
 		"PC Multi Hub Double Power Box 4",
 		AutoMappingEntry( 0, JOY_BUTTON_13,     DANCE_BUTTON_UP,	       false ),
@@ -639,7 +654,7 @@ const InputScheme *InputMapper::GetInputScheme() const
 	return m_pInputScheme;
 }
 
-static const RString DEVICE_INPUT_SEPARATOR = ":";	// this isn't used in any key names
+const RString DEVICE_INPUT_SEPARATOR = ":";	// this isn't used in any key names
 
 void InputMapper::ReadMappingsFromDisk()
 {
@@ -659,6 +674,67 @@ void InputMapper::ResetMappingsToDefault()
 	m_mappings.Clear();
 	UpdateTempDItoGI();
 	AddDefaultMappingsForCurrentGameIfUnmapped();
+}
+
+void InputMapper::CheckButtonAndAddToReason(GameButton menu, vector<RString>& full_reason, RString const& sub_reason)
+{
+	vector<GameInput> inputs;
+	bool exists= false;
+	// Only player 1 is checked because the player 2 buttons are rarely
+	// unmapped and do not exist on some keyboard models. -Kyz
+	GetInputScheme()->MenuButtonToGameInputs(menu, PLAYER_1, inputs);
+	if(!inputs.empty())
+	{
+		vector<DeviceInput> device_inputs;
+		FOREACH(GameInput, inputs, inp)
+		{
+			for(int slot= 0; slot < NUM_GAME_TO_DEVICE_SLOTS; ++slot)
+			{
+				device_inputs.push_back(m_mappings.m_GItoDI[inp->controller][inp->button][slot]);
+			}
+		}
+		FOREACH(DeviceInput, device_inputs, inp)
+		{
+			if(!inp->IsValid())
+			{
+				continue;
+			}
+			int use_count= 0;
+			FOREACH_ENUM(GameController,  cont)
+			{
+				FOREACH_GameButtonInScheme(GetInputScheme(), gb)
+				{
+					for(int slot= 0; slot < NUM_GAME_TO_DEVICE_SLOTS; ++slot)
+					{
+						use_count+= ((*inp) == m_mappings.m_GItoDI[cont][gb][slot]);
+					}
+				}
+			}
+			// If the device input is used more than once, it's a case where a
+			// default mapped key was remapped to some other game button. -Kyz
+			if(use_count == 1)
+			{
+				exists= true;
+			}
+		}
+	}
+	if(!exists)
+	{
+		full_reason.push_back(sub_reason);
+	}
+}
+
+void InputMapper::SanityCheckMappings(vector<RString>& reason)
+{
+	// This is just to check whether the current mapping has the minimum
+	// necessary to navigate the menus so the user can reach the config screen.
+	// For this purpose, only the following keys are needed:
+	// MenuLeft, MenuRight, Start, Operator
+	// The InputScheme handles OnlyDedicatedMenuButtons logic. -Kyz
+	CheckButtonAndAddToReason(GAME_BUTTON_MENULEFT, reason, "MenuLeftMissing");
+	CheckButtonAndAddToReason(GAME_BUTTON_MENURIGHT, reason, "MenuRightMissing");
+	CheckButtonAndAddToReason(GAME_BUTTON_START, reason, "StartMissing");
+	CheckButtonAndAddToReason(GAME_BUTTON_OPERATOR, reason, "OperatorMissing");
 }
 
 static LocalizedString CONNECTED			( "InputMapper", "Connected" );
@@ -847,6 +923,16 @@ bool InputMapper::IsBeingPressed( GameButton MenuI, PlayerNumber pn ) const
 			return true;
 
 	return false;
+}
+
+bool InputMapper::IsBeingPressed(const vector<GameInput>& GameI, MultiPlayer mp, const DeviceInputList *pButtonState ) const
+{
+	bool pressed= false;
+	for(size_t i= 0; i < GameI.size(); ++i)
+	{
+		pressed |= IsBeingPressed(GameI[i], mp, pButtonState);
+	}
+	return pressed;
 }
 
 void InputMapper::RepeatStopKey( const GameInput &GameI )

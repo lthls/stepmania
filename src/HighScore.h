@@ -30,7 +30,7 @@ struct HighScore
 	/**
 	 * @brief Retrieve the score earned.
 	 * @return the score. */
-	int GetScore() const;
+	unsigned int GetScore() const;
 	/**
 	 * @brief Determine if any judgments were tallied during this run.
 	 * @return true if no judgments were recorded, false otherwise. */
@@ -41,7 +41,7 @@ struct HighScore
 	 * @return the number of seconds left. */
 	float GetSurviveSeconds() const;
 	float GetSurvivalSeconds() const;
-	int   GetMaxCombo() const;
+	unsigned int   GetMaxCombo() const;
 	StageAward GetStageAward() const;
 	PeakComboAward GetPeakComboAward() const;
 	/**
@@ -66,10 +66,10 @@ struct HighScore
 	 * @param sName the name of the Player. */
 	void SetName( const RString &sName );
 	void SetGrade( Grade g );
-	void SetScore( int iScore );
+	void SetScore( unsigned int iScore );
 	void SetPercentDP( float f );
 	void SetAliveSeconds( float f );
-	void SetMaxCombo( int i );
+	void SetMaxCombo( unsigned int i );
 	void SetStageAward( StageAward a );
 	void SetPeakComboAward( PeakComboAward a );
 	void SetModifiers( RString s );
@@ -88,8 +88,12 @@ struct HighScore
 
 	void Unset();
 
-	bool operator>=( const HighScore& other ) const;
-	bool operator==( const HighScore& other ) const;
+	bool operator<(HighScore const& other) const;
+	bool operator>(HighScore const& other) const;
+	bool operator<=(HighScore const& other) const;
+	bool operator>=(HighScore const& other) const;
+	bool operator==(HighScore const& other) const;
+	bool operator!=(HighScore const& other) const;
 
 	XNode* CreateNode() const;
 	void LoadFromNode( const XNode* pNode );
@@ -131,6 +135,8 @@ public:
 	void RemoveAllButOneOfEachName();
 	void ClampSize( bool bIsMachine );
 
+	void MergeFromOtherHSL(HighScoreList& other, bool is_machine);
+
 	XNode* CreateNode() const;
 	void LoadFromNode( const XNode* pNode );
 
@@ -158,6 +164,15 @@ struct Screenshot
 
 	XNode* CreateNode() const;
 	void LoadFromNode( const XNode* pNode );
+	bool operator<(Screenshot const& rhs) const
+	{
+		return highScore.GetDateTime() < rhs.highScore.GetDateTime();
+	}
+
+	bool operator==(Screenshot const& rhs) const
+	{
+		return sFileName == rhs.sFileName;
+	}
 };
 
 #endif

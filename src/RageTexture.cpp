@@ -76,7 +76,7 @@ void RageTexture::GetFrameDimensionsFromFileName( RString sPath, int* piFramesWi
 
 const RectF *RageTexture::GetTextureCoordRect( int iFrameNo ) const
 {
-	return &m_TextureCoordRects[iFrameNo];
+	return &m_TextureCoordRects[iFrameNo % GetNumFrames()];
 }
 
 // lua start
@@ -86,9 +86,9 @@ const RectF *RageTexture::GetTextureCoordRect( int iFrameNo ) const
 class LunaRageTexture: public Luna<RageTexture>
 {
 public:
-	static int position( T* p, lua_State *L )		{ p->SetPosition( FArg(1) ); return 0; }
-	static int loop( T* p, lua_State *L )			{ p->SetLooping( BIArg(1) ); return 0; }
-	static int rate( T* p, lua_State *L )			{ p->SetPlaybackRate( FArg(1) ); return 0; }
+	static int position( T* p, lua_State *L )		{ p->SetPosition( FArg(1) ); COMMON_RETURN_SELF; }
+	static int loop( T* p, lua_State *L )			{ p->SetLooping( BIArg(1) ); COMMON_RETURN_SELF; }
+	static int rate( T* p, lua_State *L )			{ p->SetPlaybackRate( FArg(1) ); COMMON_RETURN_SELF; }
 	static int GetTextureCoordRect( T* p, lua_State *L )
 	{
 		const RectF *pRect = p->GetTextureCoordRect( IArg(1) );
@@ -106,8 +106,15 @@ public:
 	static int Reload(T* p, lua_State* L)
 	{
 		p->Reload();
-		return 0;
+		COMMON_RETURN_SELF;
 	}
+	DEFINE_METHOD(GetSourceWidth, GetSourceWidth());
+	DEFINE_METHOD(GetSourceHeight, GetSourceHeight());
+	DEFINE_METHOD(GetTextureWidth, GetTextureWidth());
+	DEFINE_METHOD(GetTextureHeight, GetTextureHeight());
+	DEFINE_METHOD(GetImageWidth, GetImageWidth());
+	DEFINE_METHOD(GetImageHeight, GetImageHeight());
+	DEFINE_METHOD(GetPath, GetID().filename);
 
 	LunaRageTexture()
 	{
@@ -117,6 +124,13 @@ public:
 		ADD_METHOD( GetTextureCoordRect );
 		ADD_METHOD( GetNumFrames );
 		ADD_METHOD( Reload );
+		ADD_METHOD(GetSourceWidth);
+		ADD_METHOD(GetSourceHeight);
+		ADD_METHOD(GetTextureWidth);
+		ADD_METHOD(GetTextureHeight);
+		ADD_METHOD(GetImageWidth);
+		ADD_METHOD(GetImageHeight);
+		ADD_METHOD(GetPath);
 	}
 };
 

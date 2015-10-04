@@ -21,13 +21,17 @@ public:
 	~NoteField();
 	virtual void Update( float fDeltaTime );
 	virtual void DrawPrimitives();
+	void CalcPixelsBeforeAndAfterTargets();
+	void DrawBoardPrimitive();
 
-	virtual void Init( const PlayerState* pPlayerState, float fYReverseOffsetPixels );
+	virtual void Init( const PlayerState* pPlayerState, float fYReverseOffsetPixels, bool use_states_zoom= true );
 	virtual void Load( 
 		const NoteData* pNoteData, 
 		int iDrawDistanceAfterTargetsPixels, 
 		int iDrawDistanceBeforeTargetsPixels );
 	virtual void Unload();
+
+	void InitColumnRenderers();
 
 	virtual void HandleMessage( const Message &msg );
 
@@ -36,14 +40,28 @@ public:
 	void CacheAllUsedNoteSkins();
 	void FadeToFail();
 
-	void Step( int iCol, TapNoteScore score );
-	void SetPressed( int iCol );
-	void DidTapNote( int iCol, TapNoteScore score, bool bBright );
-	void DidHoldNote( int iCol, HoldNoteScore score, bool bBright );
+	void Step(int col, TapNoteScore score, bool from_lua= false);
+	void SetPressed(int col, bool from_lua= false);
+	void DidTapNote(int col, TapNoteScore score, bool bright, bool from_lua= false);
+	void DidHoldNote(int col, HoldNoteScore score, bool bright, bool from_lua= false);
+
+	virtual void PushSelf( lua_State *L );
+
+	// Allows the theme to modify the parameters to Step, SetPressed,
+	// DidTapNote, and DidHoldNote before they pass on to the ghost arrows or
+	// receptors. -Kyz
+	LuaReference m_StepCallback;
+	LuaReference m_SetPressedCallback;
+	LuaReference m_DidTapNoteCallback;
+	LuaReference m_DidHoldNoteCallback;
 
 	const PlayerState *GetPlayerState() const { return m_pPlayerState; }
 
 	int	m_iBeginMarker, m_iEndMarker;	// only used with MODE_EDIT
+
+	// m_ColumnRenderers belongs in the protected section, but it's here in
+	// public so that the Lua API can access it. -Kyz
+	vector<NoteColumnRenderer> m_ColumnRenderers;
 
 protected:
 	void CacheNoteSkin( const RString &sNoteSkin );
@@ -57,29 +75,25 @@ protected:
 	void DrawBeatBar( const float fBeat, BeatBarType type, int iMeasureIndex );
 	void DrawMarkerBar( int fBeat );
 	void DrawAreaHighlight( int iStartBeat, int iEndBeat );
-	void DrawBPMText( const float fBeat, const float fBPM );
-	void DrawFreezeText( const float fBeat, const float fLength );
-	void DrawDelayText( const float fBeat, const float fLength );
-	void DrawWarpText( const float fBeat, const float fNewBeat );
-	void DrawTimeSignatureText( const float fBeat, int iNumerator, int iDenominator );
-	void DrawTickcountText( const float fBeat, int iTicks );
-	void DrawComboText( const float fBeat, int iCombo, int iMiss );
-	void DrawLabelText( const float fBeat, RString sLabel );
-	void DrawSpeedText( const float fBeat, float fPercent, float fWait, int iMode );
-	void DrawScrollText( const float fBeat, float fPercent );
-	void DrawFakeText( const float fBeat, const float fNewBeat );
-	void DrawAttackText( const float fBeat, const Attack &attack );
-	void DrawBGChangeText( const float fBeat, const RString sNewBGName );
+	void set_text_measure_number_for_draw(
+		const float beat, const float side_sign, float x_offset,
+		const float horiz_align, const RageColor& color, const RageColor& glow);
+	void draw_timing_segment_text(const RString& text,
+		const float beat, const float side_sign, float x_offset,
+		const float horiz_align, const RageColor& color, const RageColor& glow);
+	void DrawAttackText(const float beat, const Attack &attack, const RageColor& glow);
+	void DrawBGChangeText(const float beat, const RString new_bg_name, const RageColor& glow);
 	float GetWidth() const;
 	
 	const NoteData *m_pNoteData;
-
-	float			m_fPercentFadeToFail;	// -1 if not fading to fail
 
 	const PlayerState*	m_pPlayerState;
 	int			m_iDrawDistanceAfterTargetsPixels;	// this should be a negative number
 	int			m_iDrawDistanceBeforeTargetsPixels;	// this should be a positive number
 	float		m_fYReverseOffsetPixels;
+
+	// This exists so that the board can be drawn underneath combo/judge. -Kyz
+	bool m_drawing_board_primitive;
 
 	// color arrows
 	struct NoteDisplayCols
@@ -90,6 +104,8 @@ protected:
 		NoteDisplayCols( int iNumCols ) { display = new NoteDisplay[iNumCols]; }
 		~NoteDisplayCols() { delete [] display; }
 	};
+
+	NoteFieldRenderArgs m_FieldRenderArgs;
 
 	/* All loaded note displays, mapped by their name. */
 	map<RString, NoteDisplayCols *> m_NoteDisplays;

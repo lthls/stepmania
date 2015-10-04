@@ -12,6 +12,7 @@
 #include "RageLog.h"
 #include "RageTypes.h"
 #include "MessageManager.h"
+#include "ver.h"
 
 #include <sstream> // conversion for lua functions.
 #include <csetjmp>
@@ -81,6 +82,7 @@ namespace LuaHelpers
 	template<> void Push<bool>( lua_State *L, const bool &Object ) { lua_pushboolean( L, Object ); }
 	template<> void Push<float>( lua_State *L, const float &Object ) { lua_pushnumber( L, Object ); }
 	template<> void Push<int>( lua_State *L, const int &Object ) { lua_pushinteger( L, Object ); }
+	template<> void Push<unsigned int>( lua_State *L, const unsigned int &Object ) { lua_pushnumber( L, double(Object) ); }
 	template<> void Push<RString>( lua_State *L, const RString &Object ) { lua_pushlstring( L, Object.data(), Object.size() ); }
 
 	template<> bool FromStack<bool>( Lua *L, bool &Object, int iOffset ) { Object = !!lua_toboolean( L, iOffset ); return true; }
@@ -769,7 +771,7 @@ bool LuaHelpers::RunScriptFile( const RString &sFile )
 	{
 		LUA->Release( L );
 		sError = ssprintf( "Lua runtime error: %s", sError.c_str() );
-		Dialog::OK( sError, "LUA_ERROR" );
+		LuaHelpers::ReportScriptError(sError);
 		return false;
 	}
 	LUA->Release( L );
@@ -813,7 +815,7 @@ Dialog::Result LuaHelpers::ReportScriptError(RString const& Error, RString Error
 		RString with_correct= Error + "  Correct this and click Retry, or Cancel to break.";
 		return Dialog::AbortRetryIgnore(with_correct, ErrorType);
 	}
-	Dialog::OK(Error, ErrorType);
+	//Dialog::OK(Error, ErrorType);
 	return Dialog::ok;
 }
 
@@ -1039,11 +1041,11 @@ void LuaHelpers::PushValueFunc( lua_State *L, int iArgs )
 
 #include "ProductInfo.h"
 LuaFunction( ProductFamily, (RString) PRODUCT_FAMILY );
-LuaFunction( ProductVersion, (RString) PRODUCT_VER );
+LuaFunction( ProductVersion, (RString) product_version );
 LuaFunction( ProductID, (RString) PRODUCT_ID );
 
-extern const char *const version_date;
-extern const char *const version_time;
+extern char const * const version_date;
+extern char const * const version_time;
 LuaFunction( VersionDate, (RString) version_date );
 LuaFunction( VersionTime, (RString) version_time );
 

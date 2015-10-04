@@ -266,9 +266,10 @@ void SongUtil::AdjustDuplicateSteps( Song *pSong )
 			 * bug in an earlier version. */
 			DeleteDuplicateSteps( pSong, vSteps );
 
-			CHECKPOINT;
+			char const *songTitle = pSong->GetDisplayFullTitle().c_str();
+			CHECKPOINT_M(ssprintf("Duplicate steps from %s removed.", songTitle));
 			StepsUtil::SortNotesArrayByDifficulty( vSteps );
-			CHECKPOINT;
+			CHECKPOINT_M(ssprintf("Charts from %s sorted.", songTitle));
 			for( unsigned k=1; k<vSteps.size(); k++ )
 			{
 				vSteps[k]->SetDifficulty( Difficulty_Edit );
@@ -303,15 +304,12 @@ void SongUtil::DeleteDuplicateSteps( Song *pSong, vector<Steps*> &vSteps )
 {
 	/* vSteps have the same StepsType and Difficulty.  Delete them if they have the
 	 * same m_sDescription, m_sCredit, m_iMeter and SMNoteData. */
-	CHECKPOINT;
 	for( unsigned i=0; i<vSteps.size(); i++ )
 	{
-		CHECKPOINT;
 		const Steps *s1 = vSteps[i];
 
 		for( unsigned j=i+1; j<vSteps.size(); j++ )
 		{
-			CHECKPOINT;
 			const Steps *s2 = vSteps[j];
 
 			if( s1->GetDescription() != s2->GetDescription() )
@@ -478,7 +476,7 @@ void SongUtil::SortSongPointerArrayByGrades( vector<Song*> &vpSongsInOut, bool b
 		int iCounts[NUM_Grade];
 		const Profile *pProfile = PROFILEMAN->GetMachineProfile();
 		ASSERT( pProfile != NULL );
-		pProfile->GetGrades( pSong, GAMESTATE->GetCurrentStyle()->m_StepsType, iCounts );
+		pProfile->GetGrades( pSong, GAMESTATE->GetCurrentStyle(GAMESTATE->GetMasterPlayerNumber())->m_StepsType, iCounts );
 
 		RString foo;
 		foo.reserve(256);
@@ -632,7 +630,7 @@ RString SongUtil::GetSectionNameFromSongAndSort( const Song* pSong, SortOrder so
 	case SORT_TOP_GRADES:
 		{
 			int iCounts[NUM_Grade];
-			PROFILEMAN->GetMachineProfile()->GetGrades( pSong, GAMESTATE->GetCurrentStyle()->m_StepsType, iCounts );
+			PROFILEMAN->GetMachineProfile()->GetGrades( pSong, GAMESTATE->GetCurrentStyle(GAMESTATE->GetMasterPlayerNumber())->m_StepsType, iCounts );
 
 			for( int i=Grade_Tier01; i<NUM_Grade; ++i )
 			{
@@ -899,6 +897,42 @@ bool SongUtil::ValidateCurrentStepsCredit( const RString &sAnswer, RString &sErr
 	return true;
 }
 
+static LocalizedString PREVIEW_DOES_NOT_EXIST("SongUtil", "The preview file '%s' does not exist.");
+bool SongUtil::ValidateCurrentSongPreview(const RString& answer, RString& error)
+{
+	if(answer.empty())
+	{ return true; }
+	Song* song= GAMESTATE->m_pCurSong;
+	RString real_file= song->m_PreviewFile;
+	song->m_PreviewFile= answer;
+	RString path= song->GetPreviewMusicPath();
+	bool valid= DoesFileExist(path);
+	song->m_PreviewFile= real_file;
+	if(!valid)
+	{
+		error= ssprintf(PREVIEW_DOES_NOT_EXIST.GetValue(), answer.c_str());
+	}
+	return valid;
+}
+
+static LocalizedString MUSIC_DOES_NOT_EXIST("SongUtil", "The music file '%s' does not exist.");
+bool SongUtil::ValidateCurrentStepsMusic(const RString &answer, RString &error)
+{
+	if(answer.empty())
+		return true;
+	Steps *pSteps = GAMESTATE->m_pCurSteps[PLAYER_1];
+	RString real_file= pSteps->GetMusicFile();
+	pSteps->SetMusicFile(answer);
+	RString path= pSteps->GetMusicPath();
+	bool valid= DoesFileExist(path);
+	pSteps->SetMusicFile(real_file);
+	if(!valid)
+	{
+		error= ssprintf(MUSIC_DOES_NOT_EXIST.GetValue(), answer.c_str());
+	}
+	return valid;
+}
+
 void SongUtil::GetAllSongGenres( vector<RString> &vsOut )
 {
 	set<RString> genres;
@@ -932,10 +966,10 @@ void SongUtil::GetPlayableStepsTypes( const Song *pSong, set<StepsType> &vOut )
 {
 	vector<const Style*> vpPossibleStyles;
 	// If AutoSetStyle, or a Style hasn't been chosen, check StepsTypes for all Styles.
-	if( CommonMetrics::AUTO_SET_STYLE || GAMESTATE->m_pCurStyle == NULL )
+	if( CommonMetrics::AUTO_SET_STYLE || GAMESTATE->GetCurrentStyle(PLAYER_INVALID) == NULL )
 		GAMEMAN->GetCompatibleStyles( GAMESTATE->m_pCurGame, GAMESTATE->GetNumPlayersEnabled(), vpPossibleStyles );
 	else
-		vpPossibleStyles.push_back( GAMESTATE->m_pCurStyle );
+		vpPossibleStyles.push_back( GAMESTATE->GetCurrentStyle(PLAYER_INVALID) );
 
 	// Only allow OneSide Styles in Workout
 	if( GAMESTATE->m_bMultiplayer )
@@ -1048,13 +1082,13 @@ bool SongUtil::GetStepsTypeAndDifficultyFromSortOrder( SortOrder so, StepsType &
 	case SORT_MEDIUM_METER:
 	case SORT_HARD_METER:
 	case SORT_CHALLENGE_METER:
-		stOut = GAMESTATE->GetCurrentStyle()->m_StepsType;
+		stOut = GAMESTATE->GetCurrentStyle(GAMESTATE->GetMasterPlayerNumber())->m_StepsType;
 		break;
 	case SORT_DOUBLE_EASY_METER:
 	case SORT_DOUBLE_MEDIUM_METER:
 	case SORT_DOUBLE_HARD_METER:
 	case SORT_DOUBLE_CHALLENGE_METER:
-		stOut = GAMESTATE->GetCurrentStyle()->m_StepsType;	// in case we don't find any matches below
+		stOut = GAMESTATE->GetCurrentStyle(GAMESTATE->GetMasterPlayerNumber())->m_StepsType;	// in case we don't find any matches below
 		vector<const Style*> vpStyles;
 		GAMEMAN->GetStylesForGame(GAMESTATE->m_pCurGame,vpStyles);
 		FOREACH_CONST( const Style*, vpStyles, i )

@@ -73,6 +73,11 @@ public:
 	void SaveCurrentSettingsToProfile( PlayerNumber pn );
 	Song* GetDefaultSong() const;
 
+	bool CanSafelyEnterGameplay(RString& reason);
+	void SetCompatibleStylesForPlayers();
+	void ForceSharedSidesMatch();
+	void ForceOtherPlayersToCompatibleSteps(PlayerNumber main);
+
 	void Update( float fDelta );
 
 	// Main state info
@@ -85,7 +90,11 @@ public:
 	 * @param pGame the game to start using. */
 	void SetCurGame( const Game *pGame );
 	BroadcastOnChangePtr<const Game>	m_pCurGame;
+	private: // DO NOT access directly.  Use Get/SetCurrentStyle.
 	BroadcastOnChangePtr<const Style>	m_pCurStyle;
+	// Only used if the Game specifies that styles are separate.
+	Style const* m_SeparatedStyles[NUM_PlayerNumber];
+	public:
 	/** @brief Determine which side is joined.
 	 *
 	 * The left side is player 1, and the right side is player 2. */
@@ -127,10 +136,10 @@ public:
 	bool	EnoughCreditsToJoin() const { return m_iCoins >= GetCoinsNeededToJoin(); }
 	int		GetNumSidesJoined() const;
 
-	const Game*	GetCurrentGame();
-	const Style*	GetCurrentStyle() const;
-	void	SetCurrentStyle( const Style *pStyle );
-	bool SetCompatibleStyle(StepsType stype);
+	const Game*	GetCurrentGame() const;
+	const Style*	GetCurrentStyle(PlayerNumber pn) const;
+	void	SetCurrentStyle(const Style *style, PlayerNumber pn);
+	bool SetCompatibleStyle(StepsType stype, PlayerNumber pn);
 
 	void GetPlayerInfo( PlayerNumber pn, bool& bIsEnabledOut, bool& bIsHumanOut );
 	bool IsPlayerEnabled( PlayerNumber pn ) const;
@@ -260,6 +269,8 @@ public:
 	static const float MUSIC_SECONDS_INVALID;
 
 	void ResetMusicStatistics();	// Call this when it's time to play a new song.  Clears the values above.
+	void SetPaused(bool p) { m_paused= p; }
+	bool GetPaused() { return m_paused; }
 	void UpdateSongPosition( float fPositionSeconds, const TimingData &timing, const RageTimer &timestamp = RageZeroTimer );
 	float GetSongPercent( float beat ) const;
 
@@ -396,6 +407,15 @@ public:
 
 	bool m_bDopefish;
 
+	// Autogen stuff.  This should probably be moved to its own singleton or
+	// something when autogen is generalized and more customizable. -Kyz
+	float GetAutoGenFarg(size_t i)
+	{
+		if(i >= m_autogen_fargs.size()) { return 0.0f; }
+		return m_autogen_fargs[i];
+	}
+	vector<float> m_autogen_fargs;
+
 	// Lua
 	void PushSelf( lua_State *L );
 
@@ -408,6 +428,7 @@ private:
 	// Timing position corrections
 	RageTimer m_LastPositionTimer;
 	float m_LastPositionSeconds;
+	bool m_paused;
 
 	GameState(const GameState& rhs);
 	GameState& operator=(const GameState& rhs);

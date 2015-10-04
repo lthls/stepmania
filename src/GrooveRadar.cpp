@@ -107,7 +107,7 @@ void GrooveRadar::GrooveRadarValueMap::SetFromSteps( const RadarValues &rv )
 	{
 		const float fValueCurrent = m_fValuesOld[c] * (1-m_PercentTowardNew) + m_fValuesNew[c] * m_PercentTowardNew;
 		m_fValuesOld[c] = fValueCurrent;
-		m_fValuesNew[c] = rv[c];
+		m_fValuesNew[c] = clamp(rv[c], 0.0, 1.0);
 	}
 
 	if( !m_bValuesVisible ) // the values WERE invisible
@@ -224,7 +224,7 @@ public:
 			RadarValues *pRV = Luna<RadarValues>::check(L,2);
 			p->SetFromRadarValues( pn, *pRV );
 		}
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 	static int SetFromValues( T* p, lua_State *L )
 	{
@@ -239,9 +239,9 @@ public:
 			LuaHelpers::ReadArrayFromTable( vals, L );
 			p->SetFromValues(pn, vals);
 		}
-		return 0;
+		COMMON_RETURN_SELF;
 	}
-	static int SetEmpty( T* p, lua_State *L )		{ p->SetEmpty( Enum::Check<PlayerNumber>(L, 1) ); return 0; }
+	static int SetEmpty( T* p, lua_State *L )		{ p->SetEmpty( Enum::Check<PlayerNumber>(L, 1) ); COMMON_RETURN_SELF; }
 
 	LunaGrooveRadar()
 	{

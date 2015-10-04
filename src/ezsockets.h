@@ -16,7 +16,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#if defined(HAVE_FCNTL_H)
 #include <fcntl.h>
+#endif
 #include <ctype.h>
 
 #if defined(_WINDOWS)
@@ -60,9 +62,12 @@ public:
 	long uAddr();
 
 	bool CanRead();
+	bool CanRead(unsigned int msTimeout);
 	bool DataAvailable() { return ( ( inBuffer.length()>0 ) || CanRead() ); }
+	bool DataAvailable(unsigned int msTimeout) { return ( ( inBuffer.length()>0 ) || CanRead(msTimeout) ); }
 	bool IsError();
 	bool CanWrite();
+	bool CanWrite(unsigned int msTimeout);
 
 	void update();
 

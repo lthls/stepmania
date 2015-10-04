@@ -742,7 +742,12 @@ void ScreenManager::LoadDelayedScreen()
 		// Screens may not call SetNewScreen from the ctor or Init(). (We don't do this
 		// check inside PrepareScreen; that may be called from a thread for concurrent
 		// loading, and the main thread may call SetNewScreen during that time.)
-		ASSERT_M( m_sDelayedScreen.empty(), m_sDelayedScreen );
+		// Emit an error instead of asserting. -Kyz
+		if(!m_sDelayedScreen.empty())
+		{
+			LuaHelpers::ReportScriptError("Setting a new screen during an InitCommand is not allowed.");
+			m_sDelayedScreen= "";
+		}
 
 		bLoaded = ActivatePreparedScreenAndBackground( sScreenName );
 		ASSERT( bLoaded );
@@ -861,7 +866,7 @@ void ScreenManager::ZeroNextUpdate()
 { \
 	RageSoundParams p; \
 	p.m_bIsCriticalSound = true; \
-	snd.Play(&p); \
+	snd.Play(false, &p); \
 }
 
 /* Always play these sounds, even if we're in a silent attract loop. */
@@ -909,7 +914,7 @@ public:
 		RString screen= SArg(1);
 		ValidateScreenName(L, screen);
 		p->SetNewScreen(screen);
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 	static int GetTopScreen( T* p, lua_State *L )
 	{
@@ -920,7 +925,7 @@ public:
 			lua_pushnil( L );
 		return 1;
 	}
-	static int SystemMessage( T* p, lua_State *L )		{ p->SystemMessage( SArg(1) ); return 0; }
+	static int SystemMessage( T* p, lua_State *L )		{ p->SystemMessage( SArg(1) ); COMMON_RETURN_SELF; }
 	static int ScreenIsPrepped( T* p, lua_State *L )	{ lua_pushboolean( L, ScreenManagerUtil::ScreenIsPrepped( SArg(1) ) ); return 1; }
 	static int ScreenClassExists( T* p, lua_State *L )	{ lua_pushboolean( L, g_pmapRegistrees->find( SArg(1) ) != g_pmapRegistrees->end() ); return 1; }
 	static int AddNewScreenToTop( T* p, lua_State *L )
@@ -935,10 +940,10 @@ public:
 		}
 
 		p->AddNewScreenToTop( screen, SM );
-		return 0;
+		COMMON_RETURN_SELF;
 	}
 	//static int GetScreenStackSize( T* p, lua_State *L )	{ lua_pushnumber( L, ScreenManagerUtil::g_ScreenStack.size() ); return 1; }
-	static int ReloadOverlayScreens( T* p, lua_State *L )	{ p->ReloadOverlayScreens(); return 0; }
+	static int ReloadOverlayScreens( T* p, lua_State *L )	{ p->ReloadOverlayScreens(); COMMON_RETURN_SELF; }
 
 	LunaScreenManager()
 	{

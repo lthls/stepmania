@@ -49,6 +49,7 @@ void Model::Clear()
 	m_Materials.clear();
 	m_mapNameToAnimation.clear();
 	m_pCurAnimation = NULL;
+	RecalcAnimationLengthSeconds();
 
 	if( m_pTempGeometry )
 		DISPLAY->DeleteCompiledGeometry( m_pTempGeometry );
@@ -62,6 +63,7 @@ void Model::Load( const RString &sFile )
 	sExt.MakeLower();
 	if( sExt=="txt" )
 		LoadMilkshapeAscii( sFile );
+	RecalcAnimationLengthSeconds();
 }
 
 #define THROW RageException::Throw( "Parse error in \"%s\" at line %d: \"%s\".", sPath.c_str(), iLineNum, sLine.c_str() )
@@ -102,6 +104,7 @@ void Model::LoadPieces( const RString &sMeshesPath, const RString &sMaterialsPat
 		m_pTempGeometry = DISPLAY->CreateCompiledGeometry();
 		m_pTempGeometry->Set( m_vTempMeshes, this->MaterialsNeedNormals() );
 	}
+	RecalcAnimationLengthSeconds();
 }
 
 void Model::LoadFromNode( const XNode* pNode )
@@ -117,6 +120,7 @@ void Model::LoadFromNode( const XNode* pNode )
 	}
 
 	Actor::LoadFromNode( pNode );
+	RecalcAnimationLengthSeconds();
 }
 
 
@@ -741,12 +745,14 @@ void Model::SetState( int iNewState )
 	}
 }
 
-float Model::GetAnimationLengthSeconds() const
+void Model::RecalcAnimationLengthSeconds()
 {
-	float fSeconds = 0;
-	FOREACH_CONST( msMaterial, m_Materials, m )
-		fSeconds = max( fSeconds, m->diffuse.GetAnimationLengthSeconds() );
-	return fSeconds;
+	m_animation_length_seconds= 0;
+	FOREACH_CONST(msMaterial, m_Materials, m)
+	{
+		m_animation_length_seconds= max(m_animation_length_seconds,
+			m->diffuse.GetAnimationLengthSeconds());
+	}
 }
 
 void Model::SetSecondsIntoAnimation( float fSeconds )
@@ -775,14 +781,14 @@ bool Model::MaterialsNeedNormals() const
 class LunaModel: public Luna<Model>
 {
 public:
-	static int position( T* p, lua_State *L )	{ p->SetPosition( FArg(1) ); return 0; }
-	static int playanimation( T* p, lua_State *L )	{ p->PlayAnimation(SArg(1),FArg(2)); return 0; }
-	static int SetDefaultAnimation( T* p, lua_State *L )	{ p->SetDefaultAnimation(SArg(1),FArg(2)); return 0; }
+	static int position( T* p, lua_State *L )	{ p->SetPosition( FArg(1) ); COMMON_RETURN_SELF; }
+	static int playanimation( T* p, lua_State *L )	{ p->PlayAnimation(SArg(1),FArg(2)); COMMON_RETURN_SELF; }
+	static int SetDefaultAnimation( T* p, lua_State *L )	{ p->SetDefaultAnimation(SArg(1),FArg(2)); COMMON_RETURN_SELF; }
 	static int GetDefaultAnimation( T* p, lua_State *L )	{ lua_pushstring( L, p->GetDefaultAnimation() ); return 1; }
-	static int loop( T* p, lua_State *L )		{ p->SetLoop(BArg(1)); return 0; }
-	static int rate( T* p, lua_State *L )		{ p->SetRate(FArg(1)); return 0; }
+	static int loop( T* p, lua_State *L )		{ p->SetLoop(BArg(1)); COMMON_RETURN_SELF; }
+	static int rate( T* p, lua_State *L )		{ p->SetRate(FArg(1)); COMMON_RETURN_SELF; }
 	static int GetNumStates( T* p, lua_State *L )		{ lua_pushnumber( L, p->GetNumStates() ); return 1; }
-	//static int CelShading( T* p, lua_State *L )		{ p->SetCelShading(BArg(1)); return 0; }
+	//static int CelShading( T* p, lua_State *L )		{ p->SetCelShading(BArg(1)); COMMON_RETURN_SELF; }
 
 	LunaModel()
 	{

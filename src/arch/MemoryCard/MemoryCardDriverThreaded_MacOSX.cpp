@@ -9,11 +9,15 @@
 #include <IOKit/storage/IOMedia.h>
 #include <IOKit/usb/USBSpec.h>
 #include <IOKit/usb/IOUSBLib.h>
+#if defined(HAVE_SYS_PARAM_H)
 #include <sys/param.h>
+#endif
 #include <sys/ucred.h>
 #include <sys/mount.h>
 #include <paths.h>
+#if defined(HAVE_UNISTD_H)
 #include <unistd.h>
+#endif
 
 class MemoryCardDriverThreaded_MacOSX::Helper
 {
@@ -60,8 +64,25 @@ MemoryCardDriverThreaded_MacOSX::~MemoryCardDriverThreaded_MacOSX()
 
 void MemoryCardDriverThreaded_MacOSX::Unmount( UsbStorageDevice *pDevice )
 {
+#if defined(SYNC_VOLUME_FULLSYNC) && defined(SYNC_VOLUME_WAIT)
+	
 	if( sync_volume_np( pDevice->sOsMountDir.c_str(), SYNC_VOLUME_FULLSYNC | SYNC_VOLUME_WAIT ) != 0 )
 		LOG->Warn( "Failed to flush the memory card." );
+#else
+	ParamBlockRec pb;
+	Str255 name; // A pascal string.
+	const RString& base = Basename( pDevice->sOsMountDir );
+	
+	memset( &pb, 0, sizeof(pb) );
+	name[0] = min( base.length(), size_t(255) );
+	strncpy( (char *)&name[1], base, name[0] );
+	pb.volumeParam.ioNamePtr = name;
+	pb.volumeParam.ioVolIndex = -1; // Use ioNamePtr to find the volume.
+	
+	if( PBFlushVolSync(&pb) != noErr )
+		LOG->Warn( "Failed to flush the memory card." );
+	
+#endif
 }
 
 bool MemoryCardDriverThreaded_MacOSX::USBStorageDevicesChanged()

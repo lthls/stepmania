@@ -11,6 +11,14 @@ class RageTexture;
 class Sprite: public Actor
 {
 public:
+	/** @brief The Sprite's present state. */
+	struct State
+	{
+		RectF rect;
+		/** @brief The number of "seconds to show". */
+		float fDelay;
+	};
+
 	Sprite();
 	Sprite( const Sprite &cpy );
 	virtual ~Sprite();
@@ -46,8 +54,12 @@ public:
 	virtual int GetNumStates() const;
 	virtual void SetState( int iNewState );
 	int GetState() { return m_iCurState; }
-	virtual float GetAnimationLengthSeconds() const;
+	virtual float GetAnimationLengthSeconds() const
+	{ return m_animation_length_seconds; }
+	virtual void RecalcAnimationLengthSeconds();
 	virtual void SetSecondsIntoAnimation( float fSeconds );
+	void SetStateProperties(const vector<State>& new_states)
+	{ m_States= new_states; RecalcAnimationLengthSeconds(); SetState(0); }
 
 	RString	GetTexturePath() const;
 
@@ -70,15 +82,19 @@ public:
 	 * @brief Scale the Sprite while maintaining the aspect ratio.
 	 *
 	 * It has to fit within and become clipped to the given parameters.
-	 * @param fWidth the new width.
-	 * @param fHeight the new height. */
-	void ScaleToClipped( float fWidth, float fHeight );
-	void CropTo( float fWidth, float fHeight );
+	 * @param width the new width.
+	 * @param height the new height. */
+	void ScaleToClipped( float width, float height );
+	void CropTo( float width, float height );
 
 	// Commands
 	virtual void PushSelf( lua_State *L );
 
 	void SetAllStateDelays(float fDelay);
+
+	bool m_DecodeMovie;
+
+	bool m_use_effect_clock_for_texcoords;
 
 protected:
 	void LoadFromTexture( RageTextureID ID );
@@ -90,17 +106,11 @@ private:
 
 	RageTexture* m_pTexture;
 
-	/** @brief The Sprite's present state. */
-	struct State
-	{
-		RectF rect;
-		/** @brief The number of "seconds to show". */
-		float fDelay;
-	};
 	vector<State> m_States;
 	int		m_iCurState;
 	/** @brief The number of seconds that have elapsed since we switched to this frame. */
 	float	m_fSecsIntoState;
+	float m_animation_length_seconds;
 
 	EffectMode m_EffectMode;
 	bool m_bUsingCustomTexCoords;
@@ -127,6 +137,7 @@ private:
 	// Remembered clipped dimensions are applied on Load().
 	// -1 means no remembered dimensions;
 	float	m_fRememberedClipWidth, m_fRememberedClipHeight;
+	float	m_fRememberedCropWidth, m_fRememberedCropHeight;
 
 	float m_fTexCoordVelocityX;
 	float m_fTexCoordVelocityY;

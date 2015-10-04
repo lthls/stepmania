@@ -2,22 +2,14 @@
 #define ARCH_SETUP_DARWIN_H
 
 // Replace the main function.
-extern "C" int SM_main( int argc, char *argv[] );
-#define main(x,y) SM_main(x,y)
+extern "C" int sm_main( int argc, char *argv[] );
 
-#define HAVE_VERSION_INFO
 #define HAVE_CXA_DEMANGLE
-#define HAVE_FFMPEG
 #define HAVE_PTHREAD_COND_TIMEDWAIT
 /* This must be defined to 1 because autoconf's AC_CHECK_DECLS macro decides to define
  * this in all cases. If only they could be consistent... */
 #define HAVE_DECL_SIGUSR1 1
 
-/* We have <machine/endian.h> which gets pulled in when we use gcc 4.0's <cstdlib>
- * but no <endian.h>. The definitions of LITTLE_ENDIAN, BIG_ENDIAN and end up conflicting
- * even though they resolve to the same thing (bug in gcc?). */
-#define HAVE_MACHINE_ENDIAN_H
-#define HAVE_INTTYPES_H
 #define __STDC_FORMAT_MACROS
 #define CRASH_HANDLER
 
@@ -26,7 +18,6 @@ extern "C" int SM_main( int argc, char *argv[] );
 #define NO_GL_FLUSH
 
 #define CPU_X86
-#define ENDIAN_LITTLE
 #define BACKTRACE_METHOD_X86_DARWIN
 #define BACKTRACE_LOOKUP_METHOD_DLADDR
 

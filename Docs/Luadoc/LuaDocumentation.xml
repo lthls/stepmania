@@ -31,6 +31,10 @@ save yourself some time, copy this for undocumented things:
 	<Function name='Alpha' theme='_fallback' return='color' arguments='color c, float percent'>
 		[02 Colors.lua] Returns a <code>color</code> with the specified alpha.
 	</Function>
+	<Function name='approach' return='float' arguments='float current, float goal, float speed'>
+		Use this to make a current value approach a goal value at the given speed.  Speed must not be negative.  The value will not overshoot the goal.<br />
+		Note:  When you see the error "approach: speed 1 is negative." it means that the speed value passed was negative.  The 1 is there because approach and multiapproach use the same internal function and can be ignored when using approach.
+	</Function>
 	<Function name='ArbitrarySpeedMods' theme='_fallback' return='LuaOptionRow' arguments=''>
 		[03 CustomSpeedMods.lua]
 	</Function>
@@ -105,8 +109,28 @@ save yourself some time, copy this for undocumented things:
 	<Function name='ComboUnderField' theme='_fallback' return='bool' arguments=''>
 		[03 Gameplay.lua] Returns the <code>UserPrefComboUnderField</code> user preference value.
 	</Function>
+	<Function name='commify' return='string' arguments='string number, string comma, string dot'>
+		This will take the number and insert a comma every three digits, as normal in English for writing large numbers.<br />
+		<code>number</code> can be a string, an integer, or a float.<br />
+		<code>comma</code> is an optional argument that is used instead of a comma.<br />
+		"commify(1234, 'cat')" will result in "1cat234".<br />
+		<code>dot</code> is an optional argument that is used instead of a dot to find the end of the part that should be commified.<br />
+		"commify('1234cat5678', ',', 'cat')" will result in "1,234cat5678", but "commify('1234cat5678')" will result in "12,34c,at5,678".<br />
+		The <code>comma</code> and <code>dot</code> arguments are provided to ease compliance with locales or languages that do not use comma and dot in numbers the way English does.
+	</Function>
 	<Function name='ConnectToServer' return='bool' arguments='string sAddress'>
 		Tries to connect to the server at <code>sAddress</code>.
+	</Function>
+	<Function name='convert_xml_bgs' return='' arguments='string dir'>
+		Recursively searches <code>dir</code> for xml files of actors and
+		converts them to equivalent lua files.  See Docs/Themerdocs/XmlToLua.txt
+		for details.
+	</Function>
+	<Function name='create_bezier' return='RageBezier2D' arguments=''>
+		Creates a RageBezier2D for you to use.  Make sure you destroy the RageBezier2D when you're done with it, or you will have a memory leak.
+	</Function>
+	<Function name='create_spline' return='CubicSplineN' arguments=''>
+		Creates a CubicSplineN for you to use.  Make sure you destroy the CubicSplineN when you're done with it, or you will have a memory leak.
 	</Function>
 	<Function name='CustomDifficultyToColor' theme='_fallback' return='color' arguments='string cd'>
 		[02 Colors.lua]
@@ -136,7 +160,13 @@ save yourself some time, copy this for undocumented things:
 		[03 Gameplay.lua]
 	</Function>
 	<Function name='fapproach' theme='_fallback' return='float' arguments='float val, float other_val, float to_move'>
-		[02 Utilities.lua]
+		[02 Utilities.lua] Old name for approach.
+	</Function>
+	<Function name='find_missing_strings_in_theme_translations' return='' arguments='string theme_name, string master_lang_name'>
+		This function creates files in the theme's Languages folder listing all the strings that have no translation and all the strings that are unused.<br />
+		Strings that do not have an entry in the master language are considered unused.<br />
+		master_lang_name is the name of the ini file that contains the language with all strings used by the theme.<br />
+		Example:  find_missing_strings_in_theme_translations("my_best_theme", "en.ini")
 	</Function>
 	<Function name='FindSelection' theme='_fallback' return='int' arguments='table list'>
 		[02 Utilities.lua] Return the index of a true value in <code>list</code>.
@@ -180,6 +210,10 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='GetLifeDifficulty' return='int' arguments=''>
 		Returns the current Life Difficulty.
+	</Function>
+	<Function name='get_music_file_length' return='float' arguments='string path'>
+		Returns the length of the music file found at path.<br />
+		If you are loading the sound into an ActorSound, ActorSound:get to get its RageSound then use RageSound's get_length function instead to avoid loading the file twice.
 	</Function>
 	<Function name='GetOSName' return='string' arguments=''>
 		Returns a string representing the name of the operating system being used. (e.g. "Windows", "Linux", "Mac, "Unknown")
@@ -327,6 +361,12 @@ save yourself some time, copy this for undocumented things:
 	<Function name='JudgmentLineToStrokeColor' theme='_fallback' return='color' arguments='JudgmentLine jl'>
 		[02 Colors.lua]
 	</Function>
+	<Function name='lerp' return='float' arguments='float percent, float start, float end'>
+		Returns a number linearly interpolated between start and end by percent.
+	</Function>
+	<Function name='lerp_color' return='color' arguments='float percent, color start, color end'>
+		Same as lerp, but for colors.  All channels will reach the end of the interpolation at the same time.
+	</Function>
 	<Function name='LoadActor' return='ActorDef' arguments='string sPath, ...'>
 		Returns an Actor definition for the actor at <code>sPath</code>. If <code>sPath</code> points to a Lua file, any additional arguments will be passed to that script.
 	</Function>
@@ -368,6 +408,12 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='MonthToString' return='string' arguments='Month m'>
 		Returns Month <code>m</code> as a string.
+	</Function>
+	<Function name='multiapproach' return='table' arguments='table currents, table goals, table speeds, float multiplier'>
+		Similar to approach, but operates on tables of values instead of single values.  This will modify the contents of <code>currents</code> in place, as well as returning <code>currents</code>.<br />
+		<code>currents</code>, <code>goals</code>, and <code>speeds</code> must all be the same size and contain only numbers.<br />
+		<code>multiplier</code> is optional.  The speeds in the speeds table will be multiplied by <code>multiplier</code>.  This makes it more convenient to use multiapproach in a per-frame update: pass in the frame delta and the speeds will be scaled to the time that passed.<br />
+		Note:  When you see the error "approach: speed 1 is negative." it means that a speed value passed was negative.  The 1 tells you which entry in the table was invalid.
 	</Function>
 	<Function name='next' return='void' arguments='table t, int index'>
 		"Allows a program to traverse all fields of a table. Its first argument is a
@@ -426,14 +472,22 @@ save yourself some time, copy this for undocumented things:
 		"Sets the real value of <code>t[index]</code> to <code>value</code>, without invoking any metamethod."
 		The modified <code>t</code> is then returned.
 	</Function>
-	<Function name='ResolveRelativePath' theme='_fallback' return='string' arguments='string path, int level'>
-		[02 ActorDef.lua]
+	<Function name='ResolveRelativePath' theme='_fallback' return='string' arguments='string path, int level, bool optional'>
+		[02 ActorDef.lua] Used internally by LoadActor to resolve a path.  If <code>optional</code> is true, then a nil path is returned instead of emitting an error if no file is found.
 	</Function>
 	<Function name='ReadFile' theme='_fallback' return='string' arguments='string path'>
 		[04 FileUtils.lua] Reads the file at <code>path</code> and returns its contents.
 	</Function>
 	<Function name='ReadPrefFromFile' theme='_fallback' return='string' arguments='string prefName'>
 		[03 UserPreferences2.lua] (internal) Reads the specified user preference from its config file.
+	</Function>
+	<Function name='rec_print_children' theme='_fallback' return='' arguments='ActorFrame a, string indent'>
+		Recursively prints all the children of the actor frame to the log file.  This can be useful for finding out what actors are on a screen or just seeing what the structure of the actor tree looks like.<br />
+		<code>indent</code> is an optional argument that will be prepended to every line.
+	</Function>
+	<Function name='rec_print_table' theme='_fallback' return='' arguments='table t, string indent'>
+		Recursively prints all values in the table to the log file in the form "(key_type) key: (value_type) value" so that you know the type of the key and the value.  Useful if you're not sure exactly what is in a table passed as a parameter.<br />
+		<code>indent</code> is an optional argument that will be prepended to every line.
 	</Function>
 	<Function name='ReportStyle' return='void' arguments=''>
 		Sends the current style to the server.
@@ -576,6 +630,10 @@ save yourself some time, copy this for undocumented things:
 	<Function name='URLEncode' return='string' arguments='string sInput'>
 		Returns a string with characters escaped for URLs. (e.g. a space becomes '%20')
 	</Function>
+	<Function name='update_centering' return='' arguments=''>
+		This tells Stepmania to update the screen position for any changes to these preferences: CenterImageAddWidth, CenterImageAddHeight, CenterImageTranslateX, CenterImageTranslateY.<br />
+		This way, a theme can implement a custom interactive screen for adjusting those preferences.
+	</Function>
 	<Function name='Var' theme='_fallback' return='ThreadVariable' arguments=''>
 		[01 base.lua] Alias for <Link class="lua" function="GetThreadVariable">lua.GetThreadVariable</Link>.
 	</Function>
@@ -642,7 +700,9 @@ save yourself some time, copy this for undocumented things:
 	<Function name='LoadAllCommandsAndSetXY' return='void' arguments='Actor a'>
 		Loads all commands and sets X and Y for the specified Actor.
 	</Function>
-	<Function name='ResolvePath' return='string' arguments='string sPath, int iLevel' />
+	<Function name='ResolvePath' return='string' arguments='string sPath, int iLevel, bool optional'>
+		Used internally by LoadActor to resolve a path.  If <code>optional</code> is true, then a nil path is returned instead of emitting an error if no file is found.
+	</Function>
 </Namespace>
 <Namespace name='ArrowEffects'>
 	<Function name='Update' return='void' arguments=''>
@@ -813,8 +873,28 @@ save yourself some time, copy this for undocumented things:
 <!-- Classes -->
 <Classes>
 <Class name='Actor'>
+	<Function name='AddWrapperState' return='ActorFrame' arguments=''>
+		This adds a wrapper state around the Actor, which is like wrapping the Actor in an ActorFrame, except that you can use it on any actor, and add or remove wrapper states in response to things that happen while the screen is being used. (wrapping an Actor in an ActorFrame normally requires setting it up before the screen starts)<br />
+		The ActorFrame that is returned is the wrapper state, for convenience.<br />
+		An Actor can have any number of wrapper states.  Use GetWrapperState to access wrapper states for the actor.
+	</Function>
+	<Function name='GetNumWrapperStates' return='ActorFrame' arguments=''>
+		Returns the number of wrapper states the actor has.
+	</Function>
+	<Function name='GetWrapperState' return='ActorFrame' arguments='int i'>
+		Returns the wrapper state at index i.  Think of wrapper states with a higher index as being "further out".  Actor is inside Wrapper 1, Wrapper 1 is inside Wrapper 2, Wrapper 2 is inside Wrapper 3, and so on.
+	</Function>
+	<Function name='RemoveWrapperState' return='' arguments='int i'>
+		Removes the wrapper state at index i.
+	</Function>
 	<Function name='GetParent' return='Actor' arguments=''>
 		Returns the Actor's parent, or <code>nil</code> if it doesn't have one.
+	</Function>
+	<Function name='GetFakeParent' return='Actor' arguments=''>
+		Returns the Actor's fake parent, or <code>nil</code> if it doesn't have one.
+	</Function>
+	<Function name='SetFakeParent' return='' arguments='Actor p'>
+		Sets the Actor's fake parent to p, or clears it if p is nil.
 	</Function>
 	<Function name='GetVisible' return='bool' arguments=''>
 		Returns the Actor's visibility.
@@ -969,7 +1049,7 @@ save yourself some time, copy this for undocumented things:
 		Sets the Actor's alpha level to <code>fAlpha</code>, where <code>fAlpha</code> is in the range 0..1.
 	</Function>
 	<Function name='diffuseblink' return='void' arguments=''>
-		Makes the Actor switch between two colors immediately.
+		Makes the Actor switch between two colors immediately.  See Themerdocs/effect_colors.txt for an example.
 	</Function>
 	<Function name='diffusebottomedge' return='void' arguments=''>
 		Sets the Actor's bottom edge color to <code>c</code>.
@@ -987,13 +1067,13 @@ save yourself some time, copy this for undocumented things:
 		Sets the Actor's lower right corner color to <code>c</code>.
 	</Function>
 	<Function name='diffuseramp' return='void' arguments=''>
-		Makes the Actor switch between two colors, jumping back to the first after reaching the second.
+		Makes the Actor switch between two colors, jumping back to the first after reaching the second.  See Themerdocs/effect_colors.txt for an example.
 	</Function>
 	<Function name='diffuserightedge' return='void' arguments='color c'>
 		Sets the Actor's right edge color to <code>c</code>.
 	</Function>
 	<Function name='diffuseshift' return='void' arguments=''>
-		Makes the Actor shift between two colors smoothly.
+		Makes the Actor shift between two colors smoothly.  See Themerdocs/effect_colors.txt for an example.
 	</Function>
 	<Function name='diffusetopedge' return='void' arguments='color c'>
 		Sets the Actor's top edge color to <code>c</code>.
@@ -1029,13 +1109,30 @@ save yourself some time, copy this for undocumented things:
 		Set the Actor's effect magnitude in each direction to the given values.
 	</Function>
 	<Function name='effectoffset' return='void' arguments='float fTime'>
-		Set the Actor's effect offset to <code>fTime</code>.
+		Set the Actor's effect offset to <code>fTime</code>.  The offset is added to the time into the effect before calculating percent_through_effect.
 	</Function>
 	<Function name='effectperiod' return='void' arguments='float fTime'>
 		Set the Actor's effect period to <code>fTime</code>.
 	</Function>
-	<Function name='effecttiming' return='void' arguments='float fRampUp, float fAtHalf, float fRampDown, float fAtZero'>
-		Set the Actor's effect timing.
+	<Function name='effecttiming' return='void' arguments='float ramp_to_half, float hold_at_half, float ramp_to_full, float hold_at_zero, float hold_at_full'>
+		Set the Actor's effect timing.<br />
+		hold_at_zero is before hold_at_full in the argument list for compatibility.  A future version will probably swap them because it makes more sense to have hold_at_full come before hold_at_zero.<br />
+		All effect timings must be greater than or equal to zero, at least one of them must be greater than zero.<br />
+		The effect timing controls how long it takes an effect to cycle and how long it spends in each phase.<br />
+		Depending on the effect clock, the actor's time into effect is updated every frame.  That time is then translated into a percent_through_effect using the parameters to this function.<br />
+		<br />
+		ramp_to_half is the amount of time for percent_through_effect to reach 0.5.<br />
+		hold_at_half is the amount of time percent_through_effect will stay at 0.5.<br />
+		ramp_to_full is the amount of time percent_through_effect will take to go from 0.5 to 1.0.<br />
+		hold_at_full is the amount of time percent_through_effect will stay at 1.0.<br />
+		After reaching the end of hold_at_full, percent_through_effect stays at 0 until hold_at_zero is over.<br />
+		<br />
+		The different effects use percent_through_effect in different ways.  Some use it to calculate percent_between_colors with this sine wave:  sin((percent_through_effect + 0.25f) * 2 * PI ) / 2 + 0.5f<br />
+		Some effects check the internal bool blink_on.  blink_on is true if percent_through_effect is greater than 0.5 and false if percent_through_effect is less than or equal to 0.5.<br />
+		Check the effect functions for individual explanations:  diffuseblink, diffuseshift, glowblink, glowshift, glowramp, rainbow, wag, bounce, bob, pulse, spin, vibrate.
+	</Function>
+	<Function name='effect_hold_at_full' return='void' arguments='float hold_at_full'>
+		Set the hold_at_full part of the effect timing while leaving the others unchanged.
 	</Function>
 	<Function name='fadebottom' return='void' arguments='float percent'>
 		Fades <code>percent</code> of the Actor from the bottom where <code>percent</code> is in the range 0..1.
@@ -1129,13 +1226,13 @@ save yourself some time, copy this for undocumented things:
 		Sets the Actor's glow color.
 	</Function>
 	<Function name='glowblink' return='void' arguments=''>
-		Makes the Actor glow between two colors immediately.
+		Makes the Actor glow between two colors immediately.  See Themerdocs/effect_colors.txt for an example.
 	</Function>
 	<Function name='glowramp' return='void' arguments=''>
-		Makes the Actor glow between two colors smoothly, jumping back to the first at the end.
+		Makes the Actor glow between two colors smoothly, jumping back to the first at the end.  See Themerdocs/effect_colors.txt for an example.
 	</Function>
 	<Function name='glowshift' return='void' arguments=''>
-		Makes the Actor glow between two colors smoothly.
+		Makes the Actor glow between two colors smoothly.  See Themerdocs/effect_colors.txt for an example.
 	</Function>
 	<Function name='halign' return='void' arguments='float fAlign'>
 		Set the fractional horizontal alignment of the Actor according to <code>fAlign</code> which should be a float in the range 0..1. An alignment of 0 is left aligned while an alignment of 1 is right aligned. See <Link function='horizalign' /> for the common case.
@@ -1176,8 +1273,8 @@ save yourself some time, copy this for undocumented things:
 	<Function name='play' return='void' arguments=''>
 		Starts the Actor's movement. (Usually used for Sprites or Models.)
 	</Function>
-	<Function name='playcommand' return='void' arguments='string sCommandName'>
-		Plays a command named <code>sCommandName</code>.
+	<Function name='playcommand' return='void' arguments='string sCommandName, table params'>
+		Plays a command named <code>sCommandName</code>.  <code>params</code> is passed to the command as an argument if it is a table.
 	</Function>
 	<Function name='player' theme='_fallback' return='void' arguments='PlayerNumber p'>
 		[02 Actor.lua] Sets the visibility of the Actor based on <code>p</code> being a human player.
@@ -1192,7 +1289,7 @@ save yourself some time, copy this for undocumented things:
 		Basically creates a command named <code>!sMessageName</code> (Note the ! at the beginning. The source code says this: "Hack: use "!" as a marker to broadcast a command, instead of playing a command, so we don't have to add yet another element to every tween state for this rarely-used command.")
 	</Function>
 	<Function name='rainbow' return='void' arguments=''>
-		Makes the Actor change colors continually using colors of the rainbow.
+		Makes the Actor change colors continually using colors of the rainbow.  Each channel follows a cosine wave, red starts at 0, green starts at 2pi/3, and blue starts at 4pi/3.
 	</Function>
 	<Function name='roll' return='void' arguments='float fRoll'>
 		Sets the roll of this Actor to <code>fRoll</code>.
@@ -1277,7 +1374,10 @@ save yourself some time, copy this for undocumented things:
 	<Function name='texturewrapping' return='void' arguments='bool bWrap'>
 		Determines if the Actor should use texture wrapping or not.
 	</Function>
-	<!-- tween -->
+	<Function name='tween' return= '' arguments='float time, TweenType type, table params'>
+		Uses type to determine the tween to use.  The type must be one of the TweenType enum values.  If the type is note TweenType_Bezier, the params table is ignored.  If the type is TweenType_Bezier, then the params table must have 4 or 8 numbers.  4 numbers in the params creates a 1 dimensional bezier curve, 8 numbers creates a 2 dimensional bezier curve.<br />
+		It's usually more convenient to use Actor:linear, Actor:accelerate, and so on, rather than using Actor:tween directly.
+	</Function>
 	<Function name='valign' return='void' arguments='float fAlign'>
 		Set the fractional vertical alignment of the Actor according to <code>fAlign</code> which should be a float in the range 0..1. An alignment of 0 is top aligned while an alignment of 1 is bottom aligned. See <Link function="vertalign" /> for the common case.
 	</Function>
@@ -1339,8 +1439,8 @@ save yourself some time, copy this for undocumented things:
 		Sets z writing to <code>true</code> or <code>false</code> based on <code>bWrite</code>.
 	</Function>
 	<!-- addons from scripts that come with sm-ssc (non-compat) -->
-	<Function name='bezier' theme='_fallback' return='void' arguments=''>
-		[02 Actor.lua]
+	<Function name='bezier' theme='_fallback' return='' arguments='float time, table curve'>
+		[02 Actor.lua] Plays the commands that follow using a bezier curve to determine the rate.  The curve must have 4 or 8 elements.  This is a convenience wrapper around calling Actor:tween with TweenType_Bezier.
 	</Function>
 	<Function name='FullScreen' theme='_fallback' return='void' arguments=''>
 		[02 Actor.lua] Stretches an Actor to cover the screen. (equivalent to <code>stretchto,0,0,SCREEN_WIDTH,SCREEN_HEIGHT</code>)
@@ -1390,6 +1490,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='GetNumChildren' return='int' arguments=''>
 		Returns the number of children in the ActorFrame.
+	</Function>
+	<Function name='GetUpdateRate' return='float' arguments=''>
+		Gets the update function's rate.
 	</Function>
 	<Function name='playcommandonchildren' return='void' arguments='string sCommandName'>
 		Plays the <code>sCommandName</code> command on the ActorFrame's children.
@@ -1493,12 +1596,94 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 </Class>
 <Class name='ActorMultiVertex'>
+	<Function name='AddQuadState' return='' arguments='int offset'>
+		The list of quad states is used to determine which animation state is used for each quad.  The offset is added to the AMV's current state, and the resulting state is used.
+	</Function>
+	<Function name='AddState' return='' arguments='table state_data'>
+		Adds an animation state to the ActorMultiVertex.  The state_data table must be like this:<br />
+		{{left, top, right, bottom}, delay}<br />
+		left, top, right, and bottom are pixel coordinates, starting at 0.  If delay is 0 or negative, the state will last forever.
+	</Function>
+	<Function name='ForceStateUpdate' return='' arguments=''>
+		Forces the AMV to update the texture coordinates on all its quads, even if the current state has not changed.
+	</Function>
+	<Function name='GetUseAnimationState' return= 'bool' arguments=''>
+		Returns whether the AMV uses the animation state.
+	</Function>
+	<Function name='SetUseAnimationState' return= '' arguments='bool use'>
+		Sets whether the AMV uses the animation state.<br />
+		This works best when using DrawMode_Quads.<br />
+		AMV's can have animated textures like sprites.  Each state tells the AMV what part of the texture to use, and how long the state lasts.<br />
+		Use AddState to add a state onto the end, or SetStateProperties to set all the states at once, or SetState to set a single state.<br />
+		Each quad has its own offset that is added to the current state.  Use AddQuadState to add to the list of quad states, or SetQuadState to set an existing quad state.
+	</Function>
+	<Function name='GetNumStates' return= 'int' arguments=''>
+		Returns the number of states the AMV has.
+	</Function>
+	<Function name='GetNumQuadStates' return= 'int' arguments=''>
+		Returns the number of quad states in the destination tween state for the AMV.
+	</Function>
+	<Function name='GetState' return= 'int' arguments=''>
+		Returns the id of the current state.
+	</Function>
+	<Function name='GetDecodeMovie' return='bool' arguments=''>
+		Gets whether the AMV should call the decode function for its texture during updates.
+	</Function>
+	<Function name='SetDecodeMovie' return='' arguments='bool decode'>
+		Sets whether the AMV should call the decode function for its texture during updates.
+	</Function>
+	<Function name='SetState' return= '' arguments='int id'>
+		Sets the current state.
+	</Function>
+	<Function name='GetQuadState' return= 'int' arguments='int id'>
+		Returns the offset of the requested quad state.
+	</Function>
+	<Function name='SetQuadState' return= '' arguments='int id, int offset'>
+		Sets the offset of the requested quad state.
+	</Function>
+	<Function name='GetStateData' return= 'table' arguments='int id'>
+		Returns a table containing the data for the requested state.
+	</Function>
+	<Function name='SetStateData' return= '' arguments='int id, table state_data'>
+		Sets the requested state to the data in state_data.  Similar to AddState, but SetStateData only works on states that have already been added.
+	</Function>
+	<Function name='SetStateProperties' return= '' arguments='table {state_data, ...}'>
+		Each element of the table must be a state_data table, and is used to construct one state.  The table as a whole is the entire list of all states for the AMV.
+	</Function>
+	<Function name='RemoveState' return= '' arguments='int id'>
+		Removes the requested state from the state list.
+	</Function>
+	<Function name='RemoveQuadState' return= '' arguments='int id'>
+		Removes the requested quad state from the quad state list.
+	</Function>
+	<Function name='SetAllStateDelays' return= '' arguments='float delay'>
+		Sets the delay for every state to delay.
+	</Function>
+	<Function name='SetSecondsIntoAnimation' return= '' arguments='float seconds'>
+		Sets how far into its animation the AMV is.
+	</Function>
 	<Function name='SetVertex' return='void' arguments='int index, table { table pos, table color, table textcoords }'>
 		Sets vertex number <code>index</code> with the properties provided. The tables of properties are each optional and can be provided in any order.
 	</Function>
 	<Function name='SetVertices' return='void' arguments='int first, table vertices'>
 		Sets multiple vertices at once. The elements of <code>vertices</code> should themselves be tables, of the form provided to <Link class='ActorMultiVertex' function='SetVertex'>SetVertex</Link>. If <code>vertices</code> is the first argument it will start from vertex 1. If an integer is provided before <code>vertices</code> it will start from that vertex. It will add vertices as necessary.
         Example: self:SetVertices( { { { x1, y1, z1 } , { r1,g1,b1,a1 } , { tcx1,tcy1 } }; { { x2, y2, z2 } , { r2,g2,b2,a2 } , { tcx2,tcy2 } } } )
+	</Function>
+	<Function name='SetVertsFromSplines' return='' arguments=''>
+		Sets all the drawn verts of the ActorMultiVertex by evaluating the splines.<br />
+		("all the drawn verts" means all the verts between FirstToDraw and NumToDraw, the verts that are set to draw in the current tween state.)<br />
+		The parts of the ActorMultiVertex are evenly spaced along the spline in terms of t value.<br />
+		The exact behavior depends on the draw mode.<br />
+		DrawMode_Quads uses all 4 splines, one for each corner.<br />
+		DrawMode_QuadStrip and DrawMode_Strip use 2 splines, one for each edge of the strip.<br />
+		DrawMode_Fan uses one spline, for the edge verts of the fan.  The first vert is not touched because it is the center.<br />
+		DrawMode_Triangles uses 3 splines, one for each corner.<br />
+		DrawMode_SymmetricQuadStrip uses 3 splines, one on each edge and one in the center.<br />
+		DrawMode_LineStrip uses 1 spline.<br />
+	</Function>
+	<Function name='GetSpline' return='CubicSplineN' arguments='int i'>
+		Returns the requested spline.  Spline indices range from 1 to 4.<br />
+		ActorMultiVertex splines are not inside the tween state, and will not change the verts until you call SetVertsFromSplines.
 	</Function>
 	<Function name='SetNumVertices' return='void' arguments='int num'>
 		Sets the number of vertices.
@@ -1656,10 +1841,14 @@ save yourself some time, copy this for undocumented things:
 	<Description>
 		This Actor represents a playable sound. There are two attributes that can be set on load.<br />
 		* <code>SupportPan</code> - Let the sound pan from side to side.<br />
-		* <code>SupportRateChanging</code> - Let the sound change rate and pitch.
+		* <code>SupportRateChanging</code> - Let the sound change rate and pitch.<br />
+		* <code>IsAction</code> - If true, the sound is an action sound, and will be muted if the MuteActions preference is turned on.
 	</Description>
 	<Function name='get' return='RageSound' arguments=''>
 		Returns the <Link class='RageSound' /> that can be played by this Actor.
+	</Function>
+	<Function name='get_is_action' return='bool' arguments=''>
+		Returns whether the sound is an action.
 	</Function>
 	<Function name='load' return='void' arguments='string sPath'>
 		Loads the sound at <code>sPath</code>.
@@ -1672,6 +1861,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='playforplayer' theme='_fallback' return='void' arguments='PlayerNumber pn'>
 		[02 Sound.lua] Plays the sound on the given player's side. You must set <code>SupportPan = true</code> on load.
+	</Function>
+	<Function name='set_is_action' return='' arguments='bool is_action'>
+		Sets whether the sound is an action.
 	</Function>
 	<Function name='stop' return='void' arguments=''>
 		Stops the sound.
@@ -2041,6 +2233,92 @@ save yourself some time, copy this for undocumented things:
 		Returns the SHA-1 hash for <code>s</code>.
 	</Function>
 </Class>
+<Class name='CubicSplineN'>
+	<Description>
+		All functions in this class have camel case equivalents, use whichever naming style you prefer.<br />
+		This spline implementation is a cubic spline.<br />
+		A spline is a line calculated from a small set of points with mathematical smooting applied.<br />
+		Splines can have any number of dimensions, but splines owned by actors (the ones inside NCSplineHandler and ActorMultiVertex) always have 3 dimensions.<br />
+	</Description>
+	<Function name='solve' return='' arguments=''>
+		Solves the spline, setting the coefficients.
+	</Function>
+	<Function name='evaluate' return='{float}' arguments='float t'>
+		Evaluates the spline at the given t value, returning a table of the results for each dimension of the spline.<br />
+		t can range from 0 to the value returned by get_max_t().<br />
+		A normal spline will return its starting point for any t value less than 0 and its end point for any t value greater than the max.<br />
+		A looped spline adjust the t value to be within the its range by adding or subtracting the max t as needed. (so if the max t is 4 and you evaluate at 5, it will return the same as if you evaluated at 1.)
+	</Function>
+	<Function name='evaluate_derivative' return='{float}' arguments='float t'>
+		Evaluates the derivative at t.
+	</Function>
+	<Function name='evaluate_second_derivative' return='{float}' arguments='float t'>
+		Evaluates the second derivative at t.
+	</Function>
+	<Function name='evaluate_third_derivative' return='{float}' arguments='float t'>
+		Evaluates the third derivative at t.<br />
+		Second and third derivative functions exist because they're possible, not because they're expected to be useful.  The fourth derivative would be 0 because the equation for evaluating the spline is "a + (b*t) + (c*t^2) + (d*t^3)".
+	</Function>
+	<Function name='set_point' return='' arguments='int i, {float} p'>
+		Sets point i of the spline to the position specified by the table p.
+	</Function>
+	<Function name='set_coefficients' return= '' arguments='int i, {float} b, {float} c, {float} d'>
+		Sets the coefficients of the spline at point i.<br />
+		Each table must contain a value for each dimension of the spline.<br />
+		Solving the spline normally should cover all normal usage, this is for people that want a spline with an abnormal behavior, so if you set the coefficients  directly, expect to end up with an unsmooth shape.
+	</Function>
+	<Function name='get_coefficients' return='{{float}, {float}, {float}}' arguments='int i'>
+		Returns a table containing the tables of coefficients for the point i.
+	</Function>
+	<Function name='set_spatial_extent' return='' arguments='int d, float e'>
+		Sets the spatial extent of dimension d of the spline to e.<br />
+		The spatial extent exists to handle numbers that exist in a finite looped space, instead of the flat infinite space.<br />
+		To put it more concretely, spatial extent exists to allow a spline to control rotation with wrapping behavior at 0.0 and 2pi, instead of suddenly jerking from 2pi to 0.0.
+	</Function>
+	<Function name='get_spatial_extent' return='float' arguments='int d'>
+		Returns the spatial extent of dimension d of the spline.
+	</Function>
+	<Function name='get_max_t' return='float' arguments=''>
+		Returns the max t value the spline extends to.  For a normal spline, this will be size()-1.  For a looped spline, this will be size().
+	</Function>
+	<Function name='set_size' return='' arguments='int s'>
+		Sets the number of points in the spline.  You must set the number of points before trying to set the position of any point.
+	</Function>
+	<Function name='get_size' return='int s' arguments=''>
+		Returns the number of points in the spline.
+	</Function>
+	<Function name='set_dimension' return='' arguments='int d'>
+		Sets the number of dimensions the spline has.<br />
+		Splines that are owned by actors (the ones inside ActorMultiVertex and NCSplineHandler) cannot have their number of dimensions changed because the actors require them to have 3 dimensions.
+	</Function>
+	<Function name='get_dimension' return='int' arguments=''>
+		Returns the number of dimensions the spline has.
+	</Function>
+	<Function name='empty' return='bool' arguments=''>
+		Returns true of the spline has zero points, or false if it has more than zero points.
+	</Function>
+	<Function name='set_loop' return='' arguments='bool'>
+		Sets whether the spline is looped.  A looped spline is one where the end point is connected to the start point.
+	</Function>
+	<Function name='get_loop' return='bool' arguments=''>
+		Returns whether the spline is looped.
+	</Function>
+	<Function name='set_polygonal' return='' arguments='bool'>
+		Sets whether the spline is polygonal.  If the spline is polygonal, then it will have straight lines between the points instead of curves.
+	</Function>
+	<Function name='get_polygonal' return='bool' arguments=''>
+		Returns whether the spline is polygonal.
+	</Function>
+	<Function name='set_dirty' return='' arguments='bool'>
+		Sets whether the spline is dirty.  A dirty spline is one that has been changed in some way that affects its shape.  When solve() is called, the spline will only be solved if it is dirty.  The dirty flag is automatically set by everything, so you should never have to call this function.
+	</Function>
+	<Function name='get_dirty' return='bool' arguments=''>
+		Returns whether the spline is currently dirty.
+	</Function>
+	<Function name='destroy' return='' arguments=''>
+		Destroys the spline, freeing the memory allocated for it.  This can only be called on splines created with create_spline().
+	</Function>
+</Class>
 <Class name='DifficultyIcon'>
 	<Function name='SetFromDifficulty' return='void' arguments='Difficulty dc'>
 		Sets the DifficultyIcon's state from the difficulty passed in.
@@ -2115,6 +2393,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='GetName' return='string' arguments=''>
 		Returns the name of the game such as &quot;dance&quot; or &quot;pump&quot;.
+	</Function>
+	<Function name='GetSeparateStyles' return='bool' arguments=''>
+		Returns whether this game allows the players to have separate styles.
 	</Function>
 </Class>
 <Class name='GameCommand'>
@@ -2225,8 +2506,8 @@ save yourself some time, copy this for undocumented things:
 		tells the sound manager to apply the current music rate. If <code>alignBeat</code> 
 		is true or nil, the length is automatically adjusted to cover an integer number of beats.
 	</Function>
-	<Function name='PlayOnce' return='void' arguments='string sPath'>
-		Play the sound at <code>sPath</code> one time.
+	<Function name='PlayOnce' return='void' arguments='string sPath, bool is_action'>
+		Play the sound at <code>sPath</code> one time.  <code>is_action</code> is optional, if it is true, the sound is an action sound, and will be muted if the MuteActions preference is turned on.
 	</Function>
 	<Function name='StopMusic' return='void' arguments='void'>
 		Stops the music.
@@ -2242,6 +2523,9 @@ save yourself some time, copy this for undocumented things:
 	<Function name='ApplyPreferredModifiers' return='void' arguments='PlayerNumber pn, string mods'>
 		Applies the specified modifiers for the specified player's preferred modifier set.
 	</Function>
+	<Function name='ApplyPreferredSongOptionsToOtherLevels' return='void' arguments=''>
+		Applies the song options of ModsLevel_Preferred to the other ModsLevels.
+	</Function>
 	<Function name='ApplyStageModifiers' return='void' arguments='PlayerNumber pn, string mods'>
 		Applies the specified modifiers for the specified player for the current stage.
 	</Function>
@@ -2251,6 +2535,16 @@ save yourself some time, copy this for undocumented things:
 	<Function name='ApplyGameCommand' return='void' arguments='string sCommand, PlayerNumber pn'>
 		The second argument is optional. Apply the GameCommand represented by <code>sCommand</code>
 		for <code>pn</code>, if given. See <Link class='GameCommand' />.
+	</Function>
+	<Function name='CanSafelyEnterGameplay' return='bool,string' arguments=''>
+		Checks various things to determine whether the game will crash when gameplay starts.  Returns false and a string if gameplay cannot be entered safely.<br />
+		Might not work in all cases, but will catch things like a player not having
+		steps set or no current song or style.  Mainly exists for people with a custom ScreenSelectMusic replacement.<br />
+		Example:<br />
+		local can, reason= GAMESTATE:CanSafelyEnterGameplay()<br />
+		if not can then<br />
+		lua.ReportScriptError("Cannot safely enter gameplay: " .. tostring(reason))<br />
+		end<br />
 	</Function>
 	<Function name='ClearStageModifiersIllegalForCourse' return='void' arguments=''>
 		Removes any stage modifiers that are illegal for course play.
@@ -2463,6 +2757,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='GetStageIndex' return='int' arguments=''>
 		Returns the current stage index.
+	</Function>
+	<Function name='GetStepsSeconds' return='float' arguments=''>
+		Returns the current StepsSeconds, which is the time value used to set the samples in a player's life record.
 	</Function>
 	<Function name='GetStageSeed' return='int' arguments=''>
 		Return the random seed for the current stage.
@@ -2923,6 +3220,106 @@ save yourself some time, copy this for undocumented things:
 		Returns a table of noteskin names for the current gametype.
 	</Function>
 </Class>
+<Class name='NCSplineHandler'>
+	<Description>
+		All functions in this class have camel case equivalents, use whichever naming style you prefer.<br />
+		The spline handler holds info on how the spline is used by the engine.<br />
+		Each get/set pair of functions in this class is for a different aspect of the spline's behavior.
+	</Description>
+	<Function name='get_spline' return='CubicSplineN' arguments=''>
+		Returns the spline for this handler.
+	</Function>
+	<Function name='get_beats_per_t' return='float' arguments=''>
+		Returns the beats per t value of the spline.  If the beats_per_t is 4, then a note must be on screen for 4 beats to traverse from one point on the spline to the next.
+	</Function>
+	<Function name='set_beats_per_t' return='' arguments='float per'>
+		Sets the beats per t value for the spline.
+	</Function>
+	<Function name='get_receptor_t' return='float' arguments=''>
+		Returns the t value that receptors are evaluated at.
+	</Function>
+	<Function name='set_receptor_t' return='' arguments='float t'>
+		 the t value that receptors are evaluated at.
+	</Function>
+	<Function name='get_spline_mode' return='NoteColumnSplineMode' arguments=''>
+		Returns the mode the spline is set to.<br />
+		"NoteColumnSplineMode_Disabled" means the spline will not affect the notes or receptors at all.<br />
+		"NoteColumnSplineMode_Offset" means the spline will added to the effects from the mods.<br />
+		"NoteColumnSplineMode_Position" means only the spline affect the notes and mods will be ignored. (but only mods that affect the same aspect of the note as the spline will be disabled.  So a rotation spline won't disable Mini or Tiny, but a zoom spline will, and a zoom spline won't disable Dizzy, Twirl, or Roll, but a rotation spline will.)
+	</Function>
+	<Function name='set_spline_mode' return='' arguments='NoteColumnSplineMode mode'>
+		Sets the current spline mode for this handler.
+	</Function>
+	<Function name='get_subtract_song_beat' return='bool' arguments=''>
+		Returns whether the current song beat is subtracted from a note's beat when calculating the t value to use on the spline.
+	</Function>
+	<Function name='set_subtract_song_beat' return='' arguments='bool s'>
+		Sets whether the current song beat is subtracted from a note's beat when calculating the t value to use on the spline.
+	</Function>
+</Class>
+<Class base='Actor' name='NoteColumnRenderer'>
+	<Description>
+		All functions in this class have camel case equivalents, use whichever naming style you prefer.<br />
+		Position, rotation, and zoom each have separate spline handlers to allow them to have separate independent behavior.<br />
+		It is important to note that the spline handlers are inside the tween state, so whenever you start a new tween on the actor, you need to refetch the spline handlers.<br />
+	</Description>
+	<Function name='get_pos_handler' return='NCSplineHandler' arguments=''>
+		Returns the handler for the position spline.
+	</Function>
+	<Function name='get_rot_handler' return='NCSplineHandler' arguments=''>
+		Returns the handler for the rotation spline.<br />
+		The rotation applied by the rotation spline is in radians.<br />
+		For convenience, the spatial extent of the rotation spline defaults to 2pi.
+	</Function>
+	<Function name='get_zoom_handler' return='NCSplineHandler' arguments=''>
+		Returns the handler for the zoom spline.
+	</Function>
+</Class>
+<Class name='NoteField'>
+	<Description>
+		All functions in this class have camel case equivalents, use whichever naming style you prefer.<br />
+	</Description>
+	<Function name='did_hold_note' return='' arguments='int column, TapNoteScore tns, bool bright'>
+		Makes the NoteField act as if a hold note was hit in the column, with the given score and bright setting. <br />
+		The callback for did_hold_note will not be called.
+	</Function>
+	<Function name='did_tap_note' return='' arguments='int column, TapNoteScore tns, bool bright'>
+		Makes the NoteField act as if a tap note was hit in the column, with the given score and bright setting. <br />
+		The callback for did_tap_note will not be called.
+	</Function>
+	<Function name='get_column_actors' return='{NoteColumnRenderer}' arguments=''>
+		Returns a table of the actors for the columns.  This means that each column is an actor, so you can move it around or animate it like an actor.  See the NoteColumnRenderer class for a list of special functions for the column's actor.
+	</Function>
+	<Function name='set_did_hold_note_callback' return= '' arguments='function callback'>
+		Same as SetDidTapNoteCallback, but for hold notes.  Uses HoldNoteScore instead of TapNoteScore.
+	</Function>
+	<Function name='set_did_tap_note_callback' return= '' arguments='function callback'>
+		Sets the function that the NoteField will call whenever a tap note is hit.<br />
+		The callback function is passed the column, the TapNoteScore, and whether the explosion will be bright.<br />
+		The callback function can return changed values for the NoteField to use instead of the ones that were passed.<br />
+		Pass nil instead of a function to clear the callback.
+	</Function>
+	<Function name='set_pressed' return='' arguments='int column'>
+		Makes the NoteField act as if a press occurred in the column. <br />
+		The callback for set_pressed will not be called.
+	</Function>
+	<Function name='set_set_pressed_callback' return= '' arguments='function callback'>
+		Sets the function that the NoteField will call whenever a press occurs.<br />
+		The callback function is passed the column for the press.<br />
+		The callback function can return changed values for the NoteField to use instead of the ones that were passed.<br />
+		Pass nil instead of a function to clear the callback.
+	</Function>
+	<Function name='set_step_callback' return= '' arguments='function callback'>
+		Sets the function that the NoteField will call whenever a step occurs.<br />
+		The callback function is passed the column and the TapNoteScore for the step.<br />
+		The callback function can return changed values for the NoteField to use instead of the ones that were passed.<br />
+		Pass nil instead of a function to clear the callback.
+	</Function>
+	<Function name='step' return='' arguments='int column, TapNoteScore tns'>
+		Makes the NoteField act as if a step occurred in the column with the given score.
+		The callback for Step will not be called.
+	</Function>
+</Class>
 <Class name='OptionRow'>
 	<Function name='FirstItemGoesDown' return='bool' arguments=''>
 		Returns <code>true</code> if the first item in the row goes down.
@@ -2984,6 +3381,13 @@ save yourself some time, copy this for undocumented things:
 </Class>
 <Class name='PlayerOptions'>
 	<Description>
+		All these functions have an optional last argument:  If the last argument is the boolean value true, then instead of returning the previous settings as normal, they will instead return the PlayerOptions object.<br />
+		This allows you to chain them like this:<br />
+		player_options:Twirl(5, 1, true):Roll(5, true):Dizzy(true):Twirl()<br />
+		<br />
+		Special note:  Functions that take a bool as their arg must have true as the second arg to be used with chaining.<br />
+		"player_options:Backwards(true, true):Beat(5)" will chain, "player_options:Backwards(true):Beat(5)" will not chain.<br />
+		<br />
 		Most options fall into one of four types:  float, int, bool, or enum.<br />
 		Float type options have this interface:<br />
 		Option(value, approach_speed)<br />
@@ -3079,6 +3483,7 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='Mines' return='bool' arguments='bool value'> </Function>
 	<Function name='Mini' return='float, float' arguments='float value, float approach_speed'> </Function>
+	<Function name='MinTNSToHideNotes' return='TapNoteScore' arguments='TapNoteScore tns'> Sets the min TapNoteScore required for the notes to disappear after being hit. </Function>
 	<Function name='Mirror' return='bool' arguments='bool value'> </Function>
 	<Function name='MMod' return='float, float' arguments='float value, float approach_speed'>
 		If the player has a MMod set, returns the value of that MMod and its associated approach speed.  Returns nil otherwise.<br />
@@ -3102,7 +3507,7 @@ save yourself some time, copy this for undocumented things:
 		Changing the noteskin during a song is not supported.<br />
 		Example:<br />
 		note_name= options:NoteSkin() -- Sets note_name to the player's current noteskin.<br />
-		prev_note_name, succeeded= options:NoteSkin("cel") -- Sets prev_note_name to the noteskin the player had set, changes the current noteskin to "cel", sets succeeded to true if the the "cel" noteskin exists.<br />
+		prev_note_name, succeeded= options:NoteSkin("cel") -- Sets prev_note_name to the noteskin the player had set, changes the current noteskin to "cel", sets succeeded to true if the "cel" noteskin exists.<br />
 	</Function>
 	<Function name='Overhead' return='bool' arguments='bool'>
 		If the player is using Overhead (0 tilt, 0 skew), returns true.<br />
@@ -3304,6 +3709,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 </Class>
 <Class name='PlayerState'>
+	<Function name='ApplyPreferredOptionsToOtherLevels' return='void' arguments=''>
+		Applies the player options of ModsLevel_Preferred to the other ModsLevels.
+	</Function>
 	<Function name='GetCurrentPlayerOptions' return='PlayerOptions' arguments='' >
 		Returns the current PlayerOptions for this PlayerState.
 	</Function>
@@ -3444,6 +3852,9 @@ save yourself some time, copy this for undocumented things:
 	<Function name='GetNumTotalSongsPlayed' return='int' arguments=''>
 		Returns the total number of songs played with the profile.
 	</Function>
+	<Function name='GetPriority' return='int' arguments=''>
+		Returns the position the profile should have in its category in the list.
+	</Function>
 	<Function name='GetSongNumTimesPlayed' return='int' arguments='Song s'>
 		Returns the number of times song <code>s</code> has been played with the profile.
 	</Function>
@@ -3461,6 +3872,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='GetTotalCaloriesBurned' return='float' arguments=''>
 		Return the total number of calories burned.
+	</Function>
+	<Function name='GetTotalDancePoints' return='int' arguments=''>
+		Returns the number of dance points earned.
 	</Function>
 	<Function name='GetTotalHands' return='int' arguments=''>
 		Returns the number of Hands stepped on.
@@ -3491,6 +3905,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='GetTotalTrailsWithTopGrade' return='int' arguments='StepsType st, Difficulty d, Grade g'>
 		Returns the number of trails with the specified StepsType and Difficulty that you've scored a certain Grade <code>g</code> on.
+	</Function>
+	<Function name='GetType' return='ProfileType' arguments=''>
+		Returns the type of the profile.  The type of the profile is only used to determine where the profile shows up in the list of profiles, and that problem is already handled by ProfileManager, so if you're reading this, this function only exists so you can make your theme color this profile's list entry based on the type or something like that.
 	</Function>
 	<Function name='GetUserTable' return='table' arguments=''>
 		Returns the user table for this Profile.
@@ -3618,6 +4035,32 @@ save yourself some time, copy this for undocumented things:
 		Returns the value of <code>rc</code> from <Link class='Steps' function='GetRadarValues' />.
 	</Function>
 </Class>
+<Class name='RageBezier2D'>
+	<Description>
+		You must call create_bezier to create a RageBezier2D to use any of these functions.  When you are done with the object, destroy it with its destroy function to avoid a memory leak.<br />
+		A RageBezier2D is two RageQuadratics, one for the x coordinate and one for the y.<br />
+		This class is provided as a tool for designers working with bezier tweens who need a tool that displays the tween curve visually.<br />
+		If you use Actor:tween(time, "TweenType_Bezier", {xa, ya, xb, yb, xc, yc, xd, yd}) to tween an actor, the actor creates a RageBezier2D internally and calls evaluate_y_from_x each frame to set where it is in the tween.
+	</Description>
+	<Function name='destroy' return='' arguments=''>
+		Destroys the RageBezier2D.  Do not attempt to use it after it has been destroyed.
+	</Function>
+	<Function name='evaluate' return='float,float' arguments='float t'>
+		Evaluates the bezier curve at the given t and returns the x and y values.  This is equivalent to using get_x and get_y to fetch the quadratic parts and calling evaluate on them directly.
+	</Function>
+	<Function name='evaluate_y_from_x' return='float' arguments='float x'>
+		Takes the x given and converts it to a t value, then evaluates the y quadratic with the t value and returns the result.
+	</Function>
+	<Function name='get_x' return='RageQuadratic' arguments=''>
+		Returns the RageQuadratic used for the x component.
+	</Function>
+	<Function name='get_y' return='RageQuadratic' arguments=''>
+		Returns the RageQuadratic used for the y component.
+	</Function>
+	<Function name='set_from_bezier' return='' arguments='float xa, float ya, float xb, float yb, float xc, float yc, float xd, float yd'>
+		Sets the values used by the two quadratics.  This is equivalent to using get_x and get_y to get the quadratics and setting them directly.  Note that the components for the x quadratic and the y quadratic are interleaved.
+	</Function>
+</Class>
 <Class name='RageDisplay'>
 	<Function name='GetDisplayHeight' return='int' arguments=''>
 		Return the height of the display.
@@ -3651,6 +4094,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='destroy' return='void' arguments=''>
 		Safely deletes the file handle.
+	</Function>
+	<Function name='Flush' return='' arguments=''>
+		Flushes the buffer for the file handle, writing any pending output to disk.
 	</Function>
 	<Function name='GetError' return='string' arguments=''>
 		Gets the last error message and returns it.
@@ -3701,10 +4147,40 @@ save yourself some time, copy this for undocumented things:
 		Return an array of connected input device descriptions.
 	</Function>
 </Class>
+<Class name='RageQuadratic'>
+	<Description>
+		If you use Actor:tween(time, "TweenType_Bezier", {a, b, c, d}) to tween an actor, the actor creates a RageQuadratic internally and calls evaluate each frame to set where it is in the tween.
+	</Description>
+	<Function name='evaluate' return='float' arguments='float t'>
+		Evaluates the quadratic at the given t value and returns the result.
+	</Function>
+	<Function name='get_bezier' return='float,float,float,float' arguments=''>
+		Returns the four values that form the quadratic equation.  This function returns multiple values, so you must do something like this to get them:<br />
+		a, b, c, d= quadratic:get_bezier()
+	</Function>
+	<Function name='get_bezier_end' return='float' arguments=''>
+		Equivalent to evaluate(1), but faster.
+	</Function>
+	<Function name='get_bezier_start' return='float' arguments=''>
+		Equivalent to evaluate(0), but faster.
+	</Function>
+	<Function name='get_slope' return='float' arguments='float t'>
+		Returns the slope of the curve at the given t value.
+	</Function>
+	<Function name='set_from_bezier' return='' arguments='float a, float b, float c, float d'>
+		Sets the four values that form the quadratic equation.
+	</Function>
+	<Function name='set_from_cubic' return='' arguments='float a, float b, float c, float d'>
+		Sets the four values that form the quadratic equation, treating the arguments as from a cubic equation instead of as from a bezier curve.
+	</Function>
+</Class>
 <Class name='RageSound'>
 	<Description>
 		See <Link class='ActorSound' /> for loading a sound.
 	</Description>
+	<Function name='get_length' return='float' arguments=''>
+		Returns the length of the sound loaded into this RageSound.  Returns -1 if no sound is loaded.
+	</Function>
 	<Function name='SetParam' return='void' arguments='string sProperty, float fVal'>
 		Actually sets the value of <code>sProperty</code> to <code>fVal</code>. The supported properties depend on how the associated <Link class='ActorSound' /> was loaded.
 	</Function>
@@ -3722,8 +4198,29 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 </Class>
 <Class name='RageTexture'>
+	<Function name='GetSourceWidth' return='float' arguments=''>
+		Returns the source width.
+	</Function>
+	<Function name='GetSourceHeight' return='float' arguments=''>
+		Returns the source height.
+	</Function>
+	<Function name='GetTextureWidth' return='float' arguments=''>
+		Returns the texture width.
+	</Function>
+	<Function name='GetTextureHeight' return='float' arguments=''>
+		Returns the texture height.
+	</Function>
+	<Function name='GetImageWidth' return='float' arguments=''>
+		Returns the image width.
+	</Function>
+	<Function name='GetImageHeight' return='float' arguments=''>
+		Returns the image height.
+	</Function>
 	<Function name='GetNumFrames' return='int' arguments=''>
 		Returns the number of frames in this texture.
+	</Function>
+	<Function name='GetPath' return='string' arguments=''>
+		Returns the path to the texture's file.
 	</Function>
 	<Function name='GetTextureCoordRect' return='{float}' arguments=''>
 		Return the texture coordinate rectangle as <code>{left, top, right, bottom}</code>.
@@ -3933,6 +4430,9 @@ save yourself some time, copy this for undocumented things:
 	<Function name='GetCurrentRowIndex' renamed='true' return='int' arguments='PlayerNumber pn'>
 		Returns the current row that player <code>pn</code> is on. (Was previously <code>GetCurrentRow</code>.)
 	</Function>
+	<Function name='GetNumRows' return='int' arguments=''>
+		Returns the number of rows on the screen.
+	</Function>
 	<Function name='GetOptionRow' return='OptionRow' arguments='int iRow'>
 		Returns the specified OptionRow.
 	</Function>
@@ -3997,7 +4497,7 @@ save yourself some time, copy this for undocumented things:
 </Class>
 <Class name='ScreenTextEntry'>
 	<Description>
-		TextEntrySettings is implemented similar to the Attributes in BitmapText. Formatting issues prevent the sample from being properly shown here; please see Changelog_sm-ssc.txt for the TextEntrySettings format.
+		TextEntrySettings is implemented similar to the Attributes in BitmapText. Formatting issues prevent the sample from being properly shown here.<br />Please see docs/Themerdocs/ScreenTextEntry.txt for the TextEntrySettings format.
 	</Description>
 	<Function name='Load' return='void' arguments='TextEntrySettings args'>
 		Sets up a ScreenTextEntry's values.
@@ -4026,6 +4526,11 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='GetBannerPath' return='string' arguments=''>
 		Returns the path to the song's banner.
+	</Function>
+	<Function name='GetBGChanges' return='table' arguments=''>
+		Returns a table with all the data for the song's BGCHANGES line.<br />
+		Each element of the table is one change like this:<br />
+		{start_beat= 1.0, rate= 1.0, transition= "example", effect= "example", file1= "example", file2= "example", color1= "#FFFFFFFF", color2= "#FFFFFFFF"}
 	</Function>
 	<Function name='GetCDImagePath' return='string' arguments=''>
 		Returns the path to the song's CD image.
@@ -4083,6 +4588,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='GetOrigin' return='string' arguments=''>
 		Gets the Song's origin.
+	</Function>
+	<Function name='GetPreviewMusicPath' return='string' arguments=''>
+		Returns the path to the Song's preview music.  This handles the #PREVIEW tag internally, so it works with songs that use it and songs that don't.
 	</Function>
 	<Function name='GetPreviewVidPath' return='string' arguments=''>
 		Returns the path to the Song's preview video, if it exists. (Returns <code>nil</code> otherwise.)
@@ -4385,6 +4893,9 @@ save yourself some time, copy this for undocumented things:
 	<Function name='GetAnimationLengthSeconds' return='float' arguments=''>
 		Returns the length of the animation in seconds.
 	</Function>
+	<Function name='GetDecodeMovie' return='bool' arguments=''>
+		Gets whether the Sprite should call the decode function for its texture during updates.
+	</Function>
 	<Function name='GetNumStates' return='int' arguments=''>
 		Return the number of states this Sprite has.
 	</Function>
@@ -4425,11 +4936,29 @@ save yourself some time, copy this for undocumented things:
 	<Function name='StopUsingCustomPosCoords' return='void' arguments=''>
 		Turns off the custom pos coords for the sprite.
 	</Function>
+	<Function name='SetDecodeMovie' return='' arguments='bool decode'>
+		Sets whether the Sprite should call the decode function for its texture during updates.
+	</Function>
 	<Function name='SetEffectMode' return='void' arguments='EffectMode mode'>
 		Set the <Link class='ENUM' function='EffectMode' /> to <code>mode</code>.
 	</Function>
 	<Function name='SetSecondsIntoAnimation' return='void' arguments='float fSeconds'>
 		Sets the number of seconds into the animation to <code>fSeconds</code>.
+	</Function>
+	<Function name='SetStateProperties' return= '' arguments='table properties'>
+		Sets the properties of the states of the sprite.  The properties table is identical to the "Frames" table that can be put in the sprite when calling Def.Sprite.<br />
+		Example:<br />
+		{{Frame= 0, Delay= .016, {0, 0}, {.25, .25}},<br />
+		{Frame= 1, Delay= .016, {0, 0}, {.25, .25}},<br />
+		{Frame= 2, Delay= .016, {0, 0}, {.25, .25}},<br />
+		{Frame= 3, Delay= .016, {0, 0}, {.25, .25}},<br />
+		}<br />
+		Frame is optional, defaulting to 0.<br />
+		Delay is optional, defaulting to 0.<br />
+		The two tables are optional upper left and lower right corners of the fraction of the frame to use.  The example makes the sprite only use the upper left corner of each frame.<br />
+		Simpler example:<br />
+		{{Frame= 0, Delay= .016}, {Frame= 1, Delay= .016}, {Frame= 2, Delay= .016}, {Frame= 3, Delay= .016}}<br />
+		This example makes the sprite use the whole of each frame.
 	</Function>
 	<Function name='SetTexture' return='void' arguments='RageTexture texture'>
 		Set the texture to <code>texture</code>.
@@ -4439,6 +4968,9 @@ save yourself some time, copy this for undocumented things:
 	</Function>
 	<Function name='customtexturerect' return='void' arguments='float fLeft, float fTop, float fRight, float fBottom'>
 		Allows the themer to set a custom texture rectangle that effects the way the texture is drawn.
+	</Function>
+	<Function name='get_use_effect_clock_for_texcoords' return='bool' arguments=''>
+		Returns true if the sprite is using the effect clock for texcoordvelocity.
 	</Function>
 	<Function name='loop' theme='_fallback' return='void' arguments='bool bLoop'>
 		[02 Sprite.lua] Call <Link class='RageTexture' function='loop'><code>RageTexture:loop</code></Link><code>( bLoop )</code> on the texture.
@@ -4450,16 +4982,19 @@ save yourself some time, copy this for undocumented things:
 		[02 Sprite.lua] Call <Link class='RageTexture' function='rate'><code>RageTexture:rate</code></Link><code>( fRate )</code> on the texture.
 	</Function>
 	<Function name='scaletoclipped' return='void' arguments='float fWidth, float fHeight'>
-		Scale the Sprite to width <code>fWidth</code> and height <code>fHeight</code> clipping if the dimensions do not match.
+		Scale the Sprite to width <code>fWidth</code> and height <code>fHeight</code> clipping dimension that would stick out.
 	</Function>
 	<Function name='setstate' return='void' arguments='int iNewState'>
 		Set the Sprite's state to <code>iNewState</code>.
+	</Function>
+	<Function name='set_use_effect_clock_for_texcoords' return='' arguments='bool use'>
+		If <code>use</code> is true, then the sprite will use the effect clock for texcoordvelocity.
 	</Function>
 	<Function name='stretchtexcoords' return='void' arguments='float fX, float fY'>
 		<!-- XXX: What does this do? -->
 	</Function>
 	<Function name='texcoordvelocity' return='void' arguments='float fVelX, float fVelY'>
-		Set the texture coordinate velocity which controls how the Sprite changes as it animates. <!-- XXX: Can we be more specific? -->
+		Set the texture coordinate velocity which controls how the Sprite changes as it animates.  A velocity of 1 makes the texture scroll all the way once per second.
 	</Function>
 	<!-- sm-ssc addons -->
 	<Function name='CropTo' return='void' arguments='float fWidth, float fHeight'>
@@ -4639,11 +5174,14 @@ save yourself some time, copy this for undocumented things:
 	<Function name='GetColumnDrawOrder' return='int' arguments='int column'>
 		Returns the draw order of the column.
 	</Function>
+	<Function name='GetWidth' return='float' arguments='PlayerNumber pn'>
+		Returns the width of the notefield for the given player with this style.
+	</Function>
 	<Function name='LockedDifficulty' return='bool' arguments=''>
 		Returns <code>true</code> if this style locks the difficulty for both players.
 	</Function>
 	<Function name='NeedsZoomOutWith2Players' return='bool' arguments=''>
-		Returns <code>true</code> if the Style needs to be zoomed out with two players.
+		Deprecated.  Always returns false.
 	</Function>
 </Class>
 <Class name='TapNote'>
@@ -4811,8 +5349,8 @@ save yourself some time, copy this for undocumented things:
 <Class name='TimingData'>
 	<Description>
 		GetBPMsAndTimes, GetStops, GetDelays, GetLabels, GetWarps, GetCombos, GetTimeSignatures, GetTickcounts, GetFakes, GetScrolls, and GetSpeeds all have two different modes.<br />
-		If the metric TimingData:GetReturnsNumbers is false (the default), they return tables of strings.  The strings are numbers separated by '='.<br />
-		If the metric TimingData:GetReturnsNumbers is true, they return tables of tables, and the inner tables contain numbers as described for each function.<br />
+		If false (or nothing) is the argument to these functions, they return tables of strings.  The strings are numbers separated by '='.<br />
+		If the argument is true, they return tables of tables, and the inner tables contain numbers as described for each function.<br />
 		The first form is kept around and is the default for compatibility with older themes.  The advantage of the second form is that you no longer need to have a bit of code in your theme to transform the string into a table of numbers before you can use it.<br />
 		Example:<br />
 		local bpmsand= timing_data:GetBPMsAndTimes()<br />
@@ -4822,7 +5360,7 @@ save yourself some time, copy this for undocumented things:
 		end<br />
 		-- do something that looks at all the bpms and times. <br />
 		Becomes:<br />
-		local bpmsand= timing_data:GetBPMsAndTimes()<br />
+		local bpmsand= timing_data:GetBPMsAndTimes(true)<br />
 		-- do something that looks at all the bpms and times. <br />
 	</Description>
 	<Function name='GetActualBPM' return='{float}' arguments=''>

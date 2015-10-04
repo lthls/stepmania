@@ -295,20 +295,23 @@ void ScreenOptions::RestartOptions()
 	}
 
 
-	CHECKPOINT;
+	CHECKPOINT_M("About to get the rows positioned right.");
 
 	PositionRows( false );
 	FOREACH_HumanPlayer( pn )
 	{
 		for( unsigned r=0; r<m_pRows.size(); ++r )
+		{
 			this->RefreshIcons( r, pn );
+		}
 		PositionCursor( pn );
 	}
 
 	FOREACH_PlayerNumber( p )
+	{
 		AfterChangeRow( p );
-
-	CHECKPOINT;
+	}
+	CHECKPOINT_M("Rows positioned.");
 }
 
 void ScreenOptions::BeginScreen()
@@ -673,7 +676,7 @@ void ScreenOptions::PositionRows( bool bTween )
 			i < first_start ||
 			(i >= first_end && i < second_start) ||
 			i >= second_end;
-		for( int j=0; j<4; j++ )
+		for( int j=0; j<NUM_DIFFUSE_COLORS; j++ )
 			tsDestination.diffuse[j].a = bHidden? 0.0f:1.0f;
 		if( !bHidden )
 			pos++;
@@ -686,7 +689,7 @@ void ScreenOptions::PositionRows( bool bTween )
 		tsDestination.Init();
 		tsDestination.pos.y = SEPARATE_EXIT_ROW_Y;
 
-		for( int j=0; j<4; j++ )
+		for( int j=0; j<NUM_DIFFUSE_COLORS; j++ )
 			tsDestination.diffuse[j].a = 1.0f;
 		pSeparateExitRow->SetDestination( tsDestination, bTween );
 	}
@@ -811,7 +814,7 @@ bool ScreenOptions::MenuStart( const InputEventPlus &input )
 			if( bHoldingLeftAndRight )
 			{
 				if( MoveRowRelative(pn, -1, input.type != IET_FIRST_PRESS) )
-					m_SoundPrevRow.Play();
+					m_SoundPrevRow.Play(true);
 				return true;
 			}
 		}
@@ -831,7 +834,7 @@ void ScreenOptions::ProcessMenuStart( const InputEventPlus &input )
 	if( iCurRow < 0 )
 	{
 		// this shouldn't be happening, but it is, so we need to bail out. -aj
-		m_SoundStart.PlayCopy();
+		m_SoundStart.PlayCopy(true);
 		this->BeginFadingOut();
 		return;
 	}
@@ -875,7 +878,7 @@ void ScreenOptions::ProcessMenuStart( const InputEventPlus &input )
 
 		if( bEndThisScreen )
 		{
-			m_SoundStart.PlayCopy();
+			m_SoundStart.PlayCopy(true);
 			this->BeginFadingOut();
 			return;
 		}
@@ -902,9 +905,9 @@ void ScreenOptions::ProcessMenuStart( const InputEventPlus &input )
 		}
 
 		if( bSelected )
-			m_SoundToggleOn.Play();
+			m_SoundToggleOn.Play(true);
 		else
-			m_SoundToggleOff.Play();
+			m_SoundToggleOff.Play(true);
 
 		m_pRows[iCurRow]->PositionUnderlines( pn );
 		RefreshIcons( iCurRow, pn );
@@ -957,7 +960,7 @@ void ScreenOptions::ProcessMenuStart( const InputEventPlus &input )
 			/* Jump to the exit row.  (If everyone's already on the exit row, then
 			 * we'll have already gone to the next screen above.) */
 			if( MoveRowAbsolute(pn, m_pRows.size()-1) )
-				m_SoundNextRow.Play();
+				m_SoundNextRow.Play(true);
 
 			break;
 		}
@@ -1054,9 +1057,9 @@ void ScreenOptions::ChangeValueInRowRelative( int iRow, PlayerNumber pn, int iDe
 		if( MoveRowRelative(pn, iDelta, bRepeat) )
 		{
 			if( iDelta < 0 )
-				m_SoundPrevRow.Play();
+				m_SoundPrevRow.Play(true);
 			else
-				m_SoundNextRow.Play();
+				m_SoundNextRow.Play(true);
 		}
 		return;
 	}
@@ -1129,7 +1132,7 @@ void ScreenOptions::ChangeValueInRowRelative( int iRow, PlayerNumber pn, int iDe
 	}
 
 	if( bOneChanged )
-		m_SoundChangeCol.Play();
+		m_SoundChangeCol.Play(true);
 
 	if( row.GetRowDef().m_bExportOnChange )
 	{
@@ -1322,9 +1325,9 @@ void ScreenOptions::MenuUpDown( const InputEventPlus &input, int iDir )
 	if( MoveRowRelative(pn, iDir, input.type != IET_FIRST_PRESS) )
 	{
 		if( iDir < 0 )
-			m_SoundPrevRow.Play();
+			m_SoundPrevRow.Play(true);
 		else
-			m_SoundNextRow.Play();
+			m_SoundNextRow.Play(true);
 	}
 }
 
@@ -1352,13 +1355,21 @@ public:
 	static int FocusedItemEndsScreen( T* p, lua_State *L ) { lua_pushboolean( L, p->FocusedItemEndsScreen(Enum::Check<PlayerNumber>(L, 1)) ); return 1; }
 	static int GetCurrentRowIndex( T* p, lua_State *L ) { lua_pushnumber( L, p->GetCurrentRow(Enum::Check<PlayerNumber>(L, 1)) ); return 1; }
 	static int GetOptionRow( T* p, lua_State *L ) {
-		OptionRow* pOptRow = p->GetRow( IArg(1) );
+		int row_index= IArg(1);
+		// TODO:  Change row indices to be 1-indexed when breaking compatibility
+		// is allowed. -Kyz
+		if(row_index < 0 || row_index >= p->GetNumRows())
+		{
+			luaL_error(L, "Row index %d is invalid.", row_index);
+		}
+		OptionRow* pOptRow = p->GetRow(row_index);
 		if( pOptRow )
 			pOptRow->PushSelf(L);
 		else
 			lua_pushnil( L );
 		return 1;
 	}
+	DEFINE_METHOD(GetNumRows, GetNumRows());
    //static int SetOptionRowFromName( T* p, lua_State *L ) { p->SetOptionRowFromName( SArg(1) ); return 0; }
 
 	LunaScreenOptions()
@@ -1367,6 +1378,7 @@ public:
 		ADD_METHOD( FocusedItemEndsScreen );
 		ADD_METHOD( GetCurrentRowIndex );
 		ADD_METHOD( GetOptionRow );
+		ADD_METHOD( GetNumRows );
         //ADD_METHOD( SetOptionRowFromName );
 	}
 };

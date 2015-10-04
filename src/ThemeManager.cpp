@@ -616,45 +616,53 @@ bool ThemeManager::GetPathInfoToRaw( PathInfo &out, const RString &sThemeName_, 
 		for( unsigned p = 0; p < asPaths.size(); ++p )
 		{
 			// BGAnimations, Fonts, Graphics, Sounds, Other
-			static const char *masks[NUM_ElementCategory][15] = {
-				{ "redir", "lua", "xml", "png", "jpg", "jpeg", "bmp", "gif", "ogv", "avi", "mpg", "mpeg", "txt", "", NULL},
-				{ "redir", "ini", NULL },
-				{ "redir", "lua", "xml", "png", "jpg", "jpeg", "bmp", "gif", "ogv", "avi", "mpg", "mpeg", "txt", "", NULL},
-				{ "redir", "lua", "mp3", "oga", "ogg", "wav", NULL },
-				{ "*", NULL },
-			};
-			const char **asset_masks = masks[category];
-
-			const RString ext = GetExtension( asPaths[p] );
-
-			for( int i = 0; asset_masks[i]; ++i )
+			const RString ext = GetExtension(asPaths[p]);
+			bool matches= category == EC_OTHER || ext == "redir";
+			if(!matches)
 			{
-				// No extension means directories.
-				if( asset_masks[i][0] == 0 )
+				FileType ft= ActorUtil::GetFileType(asPaths[p]);
+				switch(ft)
 				{
-					if( !IsADirectory(asPaths[p]) )
-						continue;
-
-					RString sXMLPath = asPaths[p] + "/default.xml";
-					if( DoesFileExist(sXMLPath) )
-					{
-						asElementPaths.push_back( sXMLPath );
+					case FT_Bitmap:
+					case FT_Sprite:
+					case FT_Movie:
+					case FT_Xml:
+					case FT_Model:
+					case FT_Lua:
+						matches= category == EC_BGANIMATIONS || category == EC_GRAPHICS
+							|| category == EC_SOUNDS;
 						break;
-					}
-
-					RString sLuaPath = asPaths[p] + "/default.lua";
-					if( DoesFileExist(sLuaPath) )
-					{
-						asElementPaths.push_back( sLuaPath );
+					case FT_Ini:
+						matches= category == EC_FONTS;
 						break;
-					}
+					case FT_Directory:
+						{
+							RString sXMLPath = asPaths[p] + "/default.xml";
+							if(DoesFileExist(sXMLPath))
+							{
+								asElementPaths.push_back(sXMLPath);
+								break;
+							}
+							RString sLuaPath = asPaths[p] + "/default.lua";
+							if(DoesFileExist(sLuaPath))
+							{
+								asElementPaths.push_back(sLuaPath);
+								break;
+							}
+						}
+						matches= category == EC_BGANIMATIONS || category == EC_GRAPHICS;
+						break;
+					case FT_Sound:
+						matches= category == EC_SOUNDS;
+						break;
+					default:
+						matches= false;
+						break;
 				}
-
-				if( ext == asset_masks[i] || !strcmp(asset_masks[i], "*") )
-				{
-					asElementPaths.push_back( asPaths[p] );
-					break;
-				}
+			}
+			if(matches)
+			{
+				asElementPaths.push_back(asPaths[p]);
 			}
 		}
 	}
@@ -822,7 +830,7 @@ try_element_again:
 				GetThemeDirFromName(SpecialFiles::BASE_THEME_NAME) + "\".";
 			LOG->UserLog("Theme element", element.c_str(), "%s", error.c_str());
 			LOG->Warn( "%s %s", element.c_str(), error.c_str());
-			LuaHelpers::ScriptErrorMessage(error);
+			LuaHelpers::ScriptErrorMessage("'" + element + "' " + error);
 		}
 
 		// Err?
@@ -851,8 +859,13 @@ RString ThemeManager::GetPath( ElementCategory category, const RString &sMetrics
 {
 	PathInfo pi;
 	GetPathInfo( pi, category, sMetricsGroup, sElement, bOptional );
-	if(!bOptional)
-		ASSERT( !pi.sResolvedPath.empty() );
+	if(!bOptional && pi.sResolvedPath.empty())
+	{
+		LuaHelpers::ReportScriptErrorFmt("Theme element not found and not "
+			"optional: Category: %s  Metrics group: %s  Element name: %s.",
+			ElementCategoryToString(category).c_str(), sMetricsGroup.c_str(),
+			sElement.c_str());
+	}
 	return pi.sResolvedPath;
 }
 
@@ -1168,20 +1181,20 @@ void ThemeManager::GetOptionNames( vector<RString>& AddTo )
 
 static RString PseudoLocalize( RString s )
 {
-	s.Replace( "a", "àá" );
-	s.Replace( "A", "ÀÀ" );
-	s.Replace( "e", "éé" );
-	s.Replace( "E", "ÉÉ" );
-	s.Replace( "i", "íí" );
-	s.Replace( "I", "ÍÍ" );
-	s.Replace( "o", "óó" );
-	s.Replace( "O", "ÓÓ" );
-	s.Replace( "u", "üü" );
-	s.Replace( "U", "ÜÜ" );
-	s.Replace( "n", "ñ" );
-	s.Replace( "N", "Ñ" );
-	s.Replace( "c", "ç" );
-	s.Replace( "C", "Ç" );
+	s.Replace( "a", "\xc3\xa0\xc3\xa1" ); // àá
+	s.Replace( "A", "\xc3\x80\xc3\x80" ); // ÀÀ
+	s.Replace( "e", "\xc3\xa9\xc3\xa9" ); // éé
+	s.Replace( "E", "\xc3\x89\xc3\x89" ); // ÉÉ
+	s.Replace( "i", "\xc3\xad\xc3\xad" ); // íí
+	s.Replace( "I", "\xc3\x8d\xc3\x8d" ); // ÍÍ
+	s.Replace( "o", "\xc3\xb3\xc3\xb3" ); // óó
+	s.Replace( "O", "\xc3\x93\xc3\x93" ); // ÓÓ
+	s.Replace( "u", "\xc3\xbc\xc3\xbc" ); // üü
+	s.Replace( "U", "\xc3\x9c\xc3\x9c" ); // ÜÜ
+	s.Replace( "n", "\xc3\xb1" ); // ñ
+	s.Replace( "N", "\xc3\x91" ); // Ñ
+	s.Replace( "c", "\xc3\xa7" ); // ç
+	s.Replace( "C", "\xc3\x87" ); // Ç
 	// transformations that help expose punctuation assumptions
 	//s.Replace( ":", " :" );	// this messes up "::" help text tip separator markers
 	s.Replace( "?", " ?" );

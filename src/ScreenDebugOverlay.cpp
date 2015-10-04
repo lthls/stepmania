@@ -12,6 +12,7 @@
 #include "ScreenGameplay.h"
 #include "RageSoundManager.h"
 #include "GameSoundManager.h"
+#include "InputMapper.h"
 #include "RageTextureManager.h"
 #include "MemoryCardManager.h"
 #include "NoteSkinManager.h"
@@ -28,6 +29,7 @@
 #include "Song.h"
 #include "ScreenSyncOverlay.h"
 #include "ThemeMetric.h"
+#include "XmlToLua.h"
 
 static bool g_bIsDisplayed = false;
 static bool g_bIsSlow = false;
@@ -51,6 +53,8 @@ static const ThemeMetric<float>		PAGE_SPACING_X	("ScreenDebugOverlay", "PageSpac
 // We don't use SubscriptionManager, because we want to keep the line order.
 static LocalizedString ON			( "ScreenDebugOverlay", "on" );
 static LocalizedString OFF			( "ScreenDebugOverlay", "off" );
+static LocalizedString MUTE_ACTIONS_ON ("ScreenDebugOverlay", "Mute actions on");
+static LocalizedString MUTE_ACTIONS_OFF ("ScreenDebugOverlay", "Mute actions off");
 
 class IDebugLine;
 static vector<IDebugLine*> *g_pvpSubscribers = NULL;
@@ -112,6 +116,7 @@ struct MapDebugToDI
 	DeviceInput holdForDebug2;
 	DeviceInput holdForSlow;
 	DeviceInput holdForFast;
+	DeviceInput toggleMute;
 	DeviceInput debugButton[MAX_DEBUG_LINES];
 	DeviceInput gameplayButton[MAX_DEBUG_LINES];
 	map<DeviceInput, int> pageButton;
@@ -121,6 +126,7 @@ struct MapDebugToDI
 		holdForDebug2.MakeInvalid();
 		holdForSlow.MakeInvalid();
 		holdForFast.MakeInvalid();
+		toggleMute.MakeInvalid();
 		for( int i=0; i<MAX_DEBUG_LINES; i++ )
 		{
 			debugButton[i].MakeInvalid();
@@ -175,6 +181,7 @@ void ScreenDebugOverlay::Init()
 		g_Mappings.holdForDebug2.MakeInvalid();
 		g_Mappings.holdForSlow = DeviceInput(DEVICE_KEYBOARD, KEY_ACCENT);
 		g_Mappings.holdForFast = DeviceInput(DEVICE_KEYBOARD, KEY_TAB);
+		g_Mappings.toggleMute = DeviceInput(DEVICE_KEYBOARD, KEY_PAUSE);
 
 		/* TODO: Find a better way of indicating which option is which here.
 		 * Maybe we should take a page from ScreenEdit's menus and make
@@ -205,9 +212,9 @@ void ScreenDebugOverlay::Init()
 		g_Mappings.debugButton[i++] = DeviceInput(DEVICE_KEYBOARD, KEY_Ci);
 		g_Mappings.debugButton[i++] = DeviceInput(DEVICE_KEYBOARD, KEY_Co);
 		g_Mappings.debugButton[i++] = DeviceInput(DEVICE_KEYBOARD, KEY_Cp);
-		g_Mappings.debugButton[i++] = DeviceInput(DEVICE_KEYBOARD, KEY_UP);
-		g_Mappings.debugButton[i++] = DeviceInput(DEVICE_KEYBOARD, KEY_DOWN);
-		g_Mappings.debugButton[i++] = DeviceInput(DEVICE_KEYBOARD, KEY_BACK);
+		g_Mappings.debugButton[i++] = DeviceInput(DEVICE_KEYBOARD, KEY_Ca);
+		g_Mappings.debugButton[i++] = DeviceInput(DEVICE_KEYBOARD, KEY_Cs);
+		g_Mappings.debugButton[i++] = DeviceInput(DEVICE_KEYBOARD, KEY_Cd);
 		g_Mappings.pageButton[DeviceInput(DEVICE_KEYBOARD, KEY_F5)] = 0;
 		g_Mappings.pageButton[DeviceInput(DEVICE_KEYBOARD, KEY_F6)] = 1;
 		g_Mappings.pageButton[DeviceInput(DEVICE_KEYBOARD, KEY_F7)] = 2;
@@ -437,6 +444,11 @@ bool ScreenDebugOverlay::Input( const InputEventPlus &input )
 		else
 			g_bIsDisplayed = false;
 	}
+	if(input.DeviceI == g_Mappings.toggleMute)
+	{
+		PREFSMAN->m_MuteActions.Set(!PREFSMAN->m_MuteActions);
+		SCREENMAN->SystemMessage(PREFSMAN->m_MuteActions ? MUTE_ACTIONS_ON.GetValue() : MUTE_ACTIONS_OFF.GetValue());
+	}
 
 	int iPage = 0;
 	if( g_bIsDisplayed && GetValueFromMap(g_Mappings.pageButton, input.DeviceI, iPage) )
@@ -544,13 +556,17 @@ static LocalizedString PROFILE			( "ScreenDebugOverlay", "Profile" );
 static LocalizedString CLEAR_PROFILE_STATS	( "ScreenDebugOverlay", "Clear Profile Stats" );
 static LocalizedString FILL_PROFILE_STATS	( "ScreenDebugOverlay", "Fill Profile Stats" );
 static LocalizedString SEND_NOTES_ENDED	( "ScreenDebugOverlay", "Send Notes Ended" );
+static LocalizedString RESET_KEY_MAP ("ScreenDebugOverlay", "Reset key mapping to default");
+static LocalizedString MUTE_ACTIONS ("ScreenDebugOverlay", "Mute actions");
 static LocalizedString RELOAD			( "ScreenDebugOverlay", "Reload" );
 static LocalizedString RESTART			( "ScreenDebugOverlay", "Restart" );
 static LocalizedString SCREEN_ON		( "ScreenDebugOverlay", "Send On To Screen" );
 static LocalizedString SCREEN_OFF		( "ScreenDebugOverlay", "Send Off To Screen" );
 static LocalizedString RELOAD_OVERLAY_SCREENS( "ScreenDebugOverlay", "Reload Overlay Screens" );
 static LocalizedString TOGGLE_ERRORS( "ScreenDebugOverlay", "Toggle Errors" );
+static LocalizedString SHOW_RECENT_ERRORS("ScreenDebugOverlay", "Show Recent Errors");
 static LocalizedString CLEAR_ERRORS( "ScreenDebugOverlay", "Clear Errors" );
+static LocalizedString CONVERT_XML( "ScreenDebugOverlay", "Convert XML" );
 static LocalizedString RELOAD_THEME_AND_TEXTURES( "ScreenDebugOverlay", "Reload Theme and Textures" );
 static LocalizedString WRITE_PROFILES	( "ScreenDebugOverlay", "Write Profiles" );
 static LocalizedString WRITE_PREFERENCES	( "ScreenDebugOverlay", "Write Preferences" );
@@ -952,6 +968,32 @@ class DebugLineSendNotesEnded : public IDebugLine
 	}
 };
 
+class DebugLineResetKeyMapping : public IDebugLine
+{
+	virtual RString GetDisplayTitle() { return RESET_KEY_MAP.GetValue(); }
+	virtual RString GetDisplayValue() { return RString(); }
+	virtual bool IsEnabled() { return true; }
+	virtual void DoAndLog( RString &sMessageOut )
+	{
+		INPUTMAPPER->ResetMappingsToDefault();
+		INPUTMAPPER->SaveMappingsToDisk();
+		IDebugLine::DoAndLog( sMessageOut );
+	}
+};
+
+class DebugLineMuteActions : public IDebugLine
+{
+	virtual RString GetDisplayTitle() { return MUTE_ACTIONS.GetValue(); }
+	virtual RString GetDisplayValue() { return RString(); }
+	virtual bool IsEnabled() { return PREFSMAN->m_MuteActions; }
+	virtual void DoAndLog( RString &sMessageOut )
+	{
+		PREFSMAN->m_MuteActions.Set(!PREFSMAN->m_MuteActions);
+		SCREENMAN->SystemMessage(PREFSMAN->m_MuteActions ? MUTE_ACTIONS_ON.GetValue() : MUTE_ACTIONS_OFF.GetValue());
+		IDebugLine::DoAndLog( sMessageOut );
+	}
+};
+
 class DebugLineReloadCurrentScreen : public IDebugLine
 {
 	virtual RString GetDisplayTitle() { return RELOAD.GetValue(); }
@@ -1052,6 +1094,19 @@ class DebugLineToggleErrors : public IDebugLine
 {
 	virtual RString GetDisplayTitle() { return TOGGLE_ERRORS.GetValue(); }
 	virtual RString GetDisplayValue() { return RString(); }
+	virtual bool IsEnabled() { return PREFSMAN->m_show_theme_errors; }
+	virtual RString GetPageName() const { return "Theme"; }
+	virtual void DoAndLog( RString &sMessageOut )
+	{
+		PREFSMAN->m_show_theme_errors.Set(!PREFSMAN->m_show_theme_errors);
+		IDebugLine::DoAndLog(sMessageOut);
+	}
+};
+
+class DebugLineShowRecentErrors : public IDebugLine
+{
+	virtual RString GetDisplayTitle() { return SHOW_RECENT_ERRORS.GetValue(); }
+	virtual RString GetDisplayValue() { return RString(); }
 	virtual bool IsEnabled() { return true; }
 	virtual RString GetPageName() const { return "Theme"; }
 	virtual void DoAndLog( RString &sMessageOut )
@@ -1073,6 +1128,23 @@ class DebugLineClearErrors : public IDebugLine
 		Message msg("ClearScriptError");
 		MESSAGEMAN->Broadcast(msg);
 		IDebugLine::DoAndLog(sMessageOut);
+	}
+};
+
+class DebugLineConvertXML : public IDebugLine
+{
+	virtual RString GetDisplayTitle() { return CONVERT_XML.GetValue(); }
+	virtual RString GetDisplayValue() { return RString(); }
+	virtual bool IsEnabled() { return true; }
+	virtual RString GetPageName() const { return "Theme"; }
+	virtual void DoAndLog( RString &sMessageOut )
+	{
+		Song* cur_song= GAMESTATE->m_pCurSong;
+		if(cur_song)
+		{
+			convert_xmls_in_dir(cur_song->GetSongDir() + "/");
+			IDebugLine::DoAndLog(sMessageOut);
+		}
 	}
 };
 
@@ -1260,7 +1332,9 @@ DECLARE_ONE( DebugLineCurrentScreenOff );
 DECLARE_ONE( DebugLineReloadTheme );
 DECLARE_ONE( DebugLineReloadOverlayScreens );
 DECLARE_ONE( DebugLineToggleErrors );
+DECLARE_ONE( DebugLineShowRecentErrors );
 DECLARE_ONE( DebugLineClearErrors );
+DECLARE_ONE( DebugLineConvertXML );
 DECLARE_ONE( DebugLineWriteProfiles );
 DECLARE_ONE( DebugLineWritePreferences );
 DECLARE_ONE( DebugLineMenuTimer );
@@ -1272,6 +1346,8 @@ DECLARE_ONE( DebugLineVisualDelayDown );
 DECLARE_ONE( DebugLineVisualDelayUp );
 DECLARE_ONE( DebugLineForceCrash );
 DECLARE_ONE( DebugLineUptime );
+DECLARE_ONE( DebugLineResetKeyMapping );
+DECLARE_ONE( DebugLineMuteActions );
 
 
 /*

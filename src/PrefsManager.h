@@ -185,6 +185,7 @@ public:
 	//Preference<BackgroundCacheMode>		m_BackgroundCache;
 	Preference<bool>	m_bFastLoad;
 	Preference<bool>	m_bFastLoadAdditionalSongs;
+	Preference<RString> m_NeverCacheList;
 
 	Preference<bool>	m_bOnlyDedicatedMenuButtons;
 	Preference<bool>	m_bMenuTimer;
@@ -194,6 +195,7 @@ public:
 	// Whoever added these: Please add a comment saying what they do. -Chris
 	Preference<int>	m_iRegenComboAfterMiss;
 	Preference<bool>	m_bMercifulDrain; // negative life deltas are scaled by the players life percentage
+	Preference<bool> m_HarshHotLifePenalty; // See LifeMeterBar.cpp -Kyz
 	Preference<bool>	m_bMinimum1FullSongInCourses; // FEoS for 1st song, FailImmediate thereafter
 	Preference<bool>	m_bFailOffInBeginner;
 	Preference<bool>	m_bFailOffForFirstStageEasy;
@@ -213,6 +215,8 @@ public:
 	Preference<int>	m_iSongsPerPlay;
 	Preference<bool>	m_bDelayedCreditsReconcile; // zuh?
 	Preference<bool>	m_bComboContinuesBetweenSongs;
+	Preference<bool>	m_AllowMultipleToasties;
+	Preference<TapNoteScore> m_MinTNSToHideNotes;
 	Preference<Maybe>	m_ShowSongOptions;
 	Preference<bool>	m_bDancePointsForOni;
 	Preference<bool>	m_bPercentageScoring;
@@ -251,6 +255,11 @@ public:
 	// Number of seconds it takes for a button on the controller to release
 	// after pressed.
 	Preference<float>	m_fPadStickSeconds;
+
+	// Lead in time before recording starts in edit mode.
+	Preference<float> m_EditRecordModeLeadIn;
+	// User is prompted on clearing an area with more than this note count.
+	Preference<int> m_EditClearPromptThreshold;
 
 	// Useful for non 4:3 displays and resolutions < 640x480 where texels don't
 	// map directly to pixels.
@@ -291,10 +300,11 @@ public:
 	Preference<bool>	m_bMonkeyInput;
 	Preference<RString>	m_sMachineName;
 	Preference<RString>	m_sCoursesToShowRanking;
+	Preference<bool> m_MuteActions;
+	Preference<bool> m_bAllowSongDeletion; // Allow the user to remove songs from their collection through UI / keyboard shortcut
 
 	/** @brief Enable some quirky behavior used by some older versions of StepMania. */
 	Preference<bool>	m_bQuirksMode;
-	Preference<FailType> m_DefaultFailType;
 
 	// Debug:
 	Preference<bool>	m_bLogToDisk;
@@ -304,6 +314,7 @@ public:
 	Preference<bool>	m_bLogCheckpoints;
 	Preference<bool>	m_bShowLoadingWindow;
 	Preference<bool>	m_bPseudoLocalize;
+	Preference<bool>	m_show_theme_errors;
 
 #if !defined(WITHOUT_NETWORKING)
 	Preference<bool>	m_bEnableScoreboard;  //Alows disabling of scoreboard in network play

@@ -47,6 +47,7 @@ void RageTextureRenderTarget::Destroy()
 
 void RageTextureRenderTarget::BeginRenderingTo( bool bPreserveTexture )
 {
+	m_iPreviousRenderTarget = DISPLAY->GetRenderTarget( );
 	DISPLAY->SetRenderTarget( m_iTexHandle, bPreserveTexture );
 
 	/* We're rendering to a texture, not the framebuffer.
@@ -69,7 +70,7 @@ void RageTextureRenderTarget::FinishRenderingTo()
 	DISPLAY->CameraPopMatrix();
 	DISPLAY->PopMatrix();
 
-	DISPLAY->SetRenderTarget( 0 );
+	DISPLAY->SetRenderTarget( m_iPreviousRenderTarget );
 }
 
 // lua start
@@ -83,9 +84,9 @@ public:
 	{
 		bool bPreserveTexture = !!luaL_opt( L, lua_toboolean, 1, false );
 		p->BeginRenderingTo( bPreserveTexture );
-		return 0;
+		COMMON_RETURN_SELF;
 	}
-	static int FinishRenderingTo( T* p, lua_State *L )	{ p->FinishRenderingTo(); return 0; }
+	static int FinishRenderingTo( T* p, lua_State *L )	{ p->FinishRenderingTo(); COMMON_RETURN_SELF; }
 
 	LunaRageTextureRenderTarget()
 	{

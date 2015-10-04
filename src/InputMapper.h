@@ -9,6 +9,7 @@ struct Game;
 const int NUM_GAME_TO_DEVICE_SLOTS	= 5;	// five device inputs may map to one game input
 const int NUM_SHOWN_GAME_TO_DEVICE_SLOTS = 3;
 const int NUM_USER_GAME_TO_DEVICE_SLOTS = 2;
+extern const RString DEVICE_INPUT_SEPARATOR;
 
 struct AutoMappingEntry
 {
@@ -151,6 +152,8 @@ public:
 	void ReadMappingsFromDisk();
 	void SaveMappingsToDisk();
 	void ResetMappingsToDefault();
+	void CheckButtonAndAddToReason(GameButton menu, vector<RString>& full_reason, RString const& sub_reason);
+	void SanityCheckMappings(vector<RString>& reason);
 
 	void ClearAllMappings();
 
@@ -176,6 +179,7 @@ public:
 
 	bool IsBeingPressed( const GameInput &GameI, MultiPlayer mp = MultiPlayer_Invalid, const DeviceInputList *pButtonState = NULL ) const;
 	bool IsBeingPressed( GameButton MenuI, PlayerNumber pn ) const;
+	bool IsBeingPressed(const vector<GameInput>& GameI, MultiPlayer mp = MultiPlayer_Invalid, const DeviceInputList *pButtonState = NULL ) const;
 
 	void ResetKeyRepeat( const GameInput &GameI );
 	void ResetKeyRepeat( GameButton MenuI, PlayerNumber pn );

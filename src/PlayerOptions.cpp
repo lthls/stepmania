@@ -52,6 +52,7 @@ void PlayerOptions::Init()
 	m_LifeType = LifeType_Bar;
 	m_DrainType = DrainType_Normal;
 	m_BatteryLives = 4;
+	m_MinTNSToHideNotes= PREFSMAN->m_MinTNSToHideNotes;
 	m_bSetScrollSpeed = false;
 	m_fMaxScrollBPM = 0;		m_SpeedfMaxScrollBPM = 1.0f;
 	m_fTimeSpacing = 0;		m_SpeedfTimeSpacing = 1.0f;
@@ -74,7 +75,6 @@ void PlayerOptions::Init()
 	ZERO( m_bTurns );
 	ZERO( m_bTransforms );
 	m_bMuteOnError = false;
-	m_FailType = PREFSMAN->m_DefaultFailType;
 	m_sNoteSkin = "";
 }
 
@@ -118,6 +118,7 @@ void PlayerOptions::Approach( const PlayerOptions& other, float fDeltaSeconds )
 		DO_COPY( m_bTransforms[i] );
 	DO_COPY( m_bMuteOnError );
 	DO_COPY( m_FailType );
+	DO_COPY( m_MinTNSToHideNotes );
 	DO_COPY( m_sNoteSkin );
 #undef APPROACH
 #undef DO_COPY
@@ -722,7 +723,9 @@ void PlayerOptions::ToggleOneTurn( Turn t )
 float PlayerOptions::GetReversePercentForColumn( int iCol ) const
 {
 	float f = 0;
-	int iNumCols = GAMESTATE->GetCurrentStyle()->m_iColsPerPlayer;
+	ASSERT(m_pn == PLAYER_1 || m_pn == PLAYER_2);
+	ASSERT(GAMESTATE->GetCurrentStyle(m_pn) != NULL);
+	int iNumCols = GAMESTATE->GetCurrentStyle(m_pn)->m_iColsPerPlayer;
 
 	f += m_fScrolls[SCROLL_REVERSE];
 
@@ -756,6 +759,7 @@ bool PlayerOptions::operator==( const PlayerOptions &other ) const
 	COMPARE(m_fMaxScrollBPM);
 	COMPARE(m_fRandomSpeed);
 	COMPARE(m_FailType);
+	COMPARE(m_MinTNSToHideNotes);
 	COMPARE(m_bMuteOnError);
 	COMPARE(m_fDark);
 	COMPARE(m_fBlind);
@@ -781,6 +785,66 @@ bool PlayerOptions::operator==( const PlayerOptions &other ) const
 #undef COMPARE
 	return true;
 }
+
+
+PlayerOptions& PlayerOptions::operator=(PlayerOptions const& other)
+{
+	// Do not copy m_pn from the other, it must be preserved as what PlayerState set it to.
+#define CPY(x) x= other.x;
+#define CPY_SPEED(x) m_ ## x = other.m_ ## x; m_Speed ## x = other.m_Speed ## x;
+	CPY(m_LifeType);
+	CPY(m_DrainType);
+	CPY(m_BatteryLives);
+	CPY_SPEED(fTimeSpacing);
+	CPY_SPEED(fScrollSpeed);
+	CPY_SPEED(fScrollBPM);
+	CPY_SPEED(fMaxScrollBPM);
+	CPY_SPEED(fRandomSpeed);
+	CPY(m_FailType);
+	CPY(m_MinTNSToHideNotes);
+	CPY(m_bMuteOnError);
+	CPY_SPEED(fDark);
+	CPY_SPEED(fBlind);
+	CPY_SPEED(fCover);
+	CPY_SPEED(fRandAttack);
+	CPY_SPEED(fNoAttack);
+	CPY_SPEED(fPlayerAutoPlay);
+	CPY_SPEED(fPerspectiveTilt);
+	CPY_SPEED(fSkew);
+	if(!other.m_sNoteSkin.empty() &&
+		NOTESKIN->DoesNoteSkinExist(other.m_sNoteSkin))
+	{
+		CPY(m_sNoteSkin);
+	}
+	for( int i = 0; i < PlayerOptions::NUM_ACCELS; ++i )
+	{
+		CPY_SPEED(fAccels[i]);
+	}
+	for( int i = 0; i < PlayerOptions::NUM_EFFECTS; ++i )
+	{
+		CPY_SPEED(fEffects[i]);
+	}
+	for( int i = 0; i < PlayerOptions::NUM_APPEARANCES; ++i )
+	{
+		CPY_SPEED(fAppearances[i]);
+	}
+	for( int i = 0; i < PlayerOptions::NUM_SCROLLS; ++i )
+	{
+		CPY_SPEED(fScrolls[i]);
+	}
+	for( int i = 0; i < PlayerOptions::NUM_TURNS; ++i )
+	{
+		CPY(m_bTurns[i]);
+	}
+	for( int i = 0; i < PlayerOptions::NUM_TRANSFORMS; ++i )
+	{
+		CPY(m_bTransforms[i]);
+	}
+#undef CPY
+#undef CPY_SPEED
+	return *this;
+}
+
 
 bool PlayerOptions::IsEasierForSongAndSteps( Song* pSong, Steps* pSteps, PlayerNumber pn ) const
 {
@@ -833,7 +897,7 @@ bool PlayerOptions::IsEasierForSongAndSteps( Song* pSong, Steps* pSteps, PlayerN
 		DisplayBpms bpms;
 		if( GAMESTATE->IsCourseMode() )
 		{
-			Trail *pTrail = GAMESTATE->m_pCurCourse->GetTrail( GAMESTATE->GetCurrentStyle()->m_StepsType );
+			Trail *pTrail = GAMESTATE->m_pCurCourse->GetTrail( GAMESTATE->GetCurrentStyle(m_pn)->m_StepsType );
 			pTrail->GetDisplayBpms( bpms );
 		}
 		else
@@ -954,6 +1018,7 @@ void PlayerOptions::ResetPrefs( ResetPrefsType type )
 	CPY(m_LifeType);
 	CPY(m_DrainType);
 	CPY(m_BatteryLives);
+	CPY(m_MinTNSToHideNotes);
 
 	CPY( m_fPerspectiveTilt );
 	CPY( m_bTransforms[TRANSFORM_NOHOLDS] );
@@ -1078,11 +1143,12 @@ public:
 	BOOL_INTERFACE(NoStretch, Transforms[PlayerOptions::TRANSFORM_NOSTRETCH]);
 	BOOL_INTERFACE(MuteOnError, MuteOnError);
 	ENUM_INTERFACE(FailSetting, FailType, FailType);
+	ENUM_INTERFACE(MinTNSToHideNotes, MinTNSToHideNotes, TapNoteScore);
 
 	// NoteSkins
 	static int NoteSkin(T* p, lua_State* L)
 	{
-		DefaultNilArgs(L, 2);
+		int original_top= lua_gettop(L);
 		if( p->m_sNoteSkin.empty()  )
 		{
 			lua_pushstring( L, CommonMetrics::DEFAULT_NOTESKIN_NAME.GetValue() );
@@ -1091,11 +1157,12 @@ public:
 		{
 			lua_pushstring( L, p->m_sNoteSkin );
 		}
-		if(lua_isstring(L, 1))
+		if(original_top >= 1 && lua_isstring(L, 1))
 		{
-			if(NOTESKIN->DoesNoteSkinExist(SArg(1)))
+			RString skin= SArg(1);
+			if(NOTESKIN->DoesNoteSkinExist(skin))
 			{
-				p->m_sNoteSkin = SArg(1);
+				p->m_sNoteSkin = skin;
 				lua_pushboolean(L, true);
 			}
 			else
@@ -1107,6 +1174,7 @@ public:
 		{
 			lua_pushnil(L);
 		}
+		OPTIONAL_RETURN_SELF(original_top);
 		return 2;
 	}
 
@@ -1123,7 +1191,7 @@ public:
 	// engine's enforcement of sane separation between speed mod types.
 	static int CMod(T* p, lua_State* L)
 	{
-		DefaultNilArgs(L, 2);
+		int original_top= lua_gettop(L);
 		if(p->m_fTimeSpacing)
 		{
 			lua_pushnumber(L, p->m_fScrollBPM);
@@ -1134,7 +1202,7 @@ public:
 			lua_pushnil(L);
 			lua_pushnil(L);
 		}
-		if(lua_isnumber(L, 1))
+		if(original_top >= 1 && lua_isnumber(L, 1))
 		{
 			float speed= FArg(1);
 			if(!isfinite(speed) || speed <= 0.0f)
@@ -1146,16 +1214,17 @@ public:
 			p->m_fScrollSpeed = 1;
 			p->m_fMaxScrollBPM = 0;
 		}
-		if(lua_isnumber(L, 2))
+		if(original_top >= 2 && lua_isnumber(L, 2))
 		{
 			SetSpeedModApproaches(p, FArgGTEZero(L, 2));
 		}
+		OPTIONAL_RETURN_SELF(original_top);
 		return 2;
 	}
 
 	static int XMod(T* p, lua_State* L)
 	{
-		DefaultNilArgs(L, 2);
+		int original_top= lua_gettop(L);
 		if(!p->m_fTimeSpacing)
 		{
 			lua_pushnumber(L, p->m_fScrollSpeed);
@@ -1166,23 +1235,24 @@ public:
 			lua_pushnil(L);
 			lua_pushnil(L);
 		}
-		if(lua_isnumber(L, 1))
+		if(lua_isnumber(L, 1) && original_top >= 1)
 		{
 			p->m_fScrollSpeed = FArg(1);
 			p->m_fTimeSpacing = 0;
 			p->m_fScrollBPM= CMOD_DEFAULT;
 			p->m_fMaxScrollBPM = 0;
 		}
-		if(lua_isnumber(L, 2))
+		if(lua_isnumber(L, 2) && original_top >= 2)
 		{
 			SetSpeedModApproaches(p, FArgGTEZero(L, 2));
 		}
+		OPTIONAL_RETURN_SELF(original_top);
 		return 2;
 	}
 
 	static int MMod(T* p, lua_State* L)
 	{
-		DefaultNilArgs(L, 2);
+		int original_top= lua_gettop(L);
 		if(!p->m_fTimeSpacing && p->m_fMaxScrollBPM)
 		{
 			lua_pushnumber(L, p->m_fMaxScrollBPM);
@@ -1193,7 +1263,7 @@ public:
 			lua_pushnil(L);
 			lua_pushnil(L);
 		}
-		if(lua_isnumber(L, 1))
+		if(lua_isnumber(L, 1) && original_top >= 1)
 		{
 			float speed= FArg(1);
 			if(!isfinite(speed) || speed <= 0.0f)
@@ -1205,10 +1275,11 @@ public:
 			p->m_fScrollSpeed= 1;
 			p->m_fMaxScrollBPM = speed;
 		}
-		if(lua_isnumber(L, 2))
+		if(lua_isnumber(L, 2) && original_top >= 2)
 		{
 			SetSpeedModApproaches(p, FArgGTEZero(L, 2));
 		}
+		OPTIONAL_RETURN_SELF(original_top);
 		return 2;
 	}
 
@@ -1220,23 +1291,24 @@ public:
 
 	static int Overhead(T* p, lua_State* L)
 	{
-		DefaultNilArgs(L, 2);
+		int original_top= lua_gettop(L);
 		lua_pushboolean(L, (p->m_fPerspectiveTilt == 0.0f && p->m_fSkew == 0.0f));
 		if(lua_toboolean(L, 1))
 		{
 			p->m_fPerspectiveTilt= 0;
 			p->m_fSkew= 0;
 		}
-		if(lua_isnumber(L, 2))
+		if(lua_isnumber(L, 2) && original_top >= 2)
 		{
 			SetPerspectiveApproach(p, L, FArgGTEZero(L, 2));
 		}
+		OPTIONAL_RETURN_SELF(original_top);
 		return 1;
 	}
 
 	static int Incoming(T* p, lua_State* L)
 	{
-		DefaultNilArgs(L, 2);
+		int original_top= lua_gettop(L);
 		if((p->m_fSkew > 0.0f && p->m_fPerspectiveTilt < 0.0f) ||
 			(p->m_fSkew < 0.0f && p->m_fPerspectiveTilt > 0.0f))
 		{
@@ -1248,22 +1320,23 @@ public:
 			lua_pushnil(L);
 			lua_pushnil(L);
 		}
-		if(lua_isnumber(L, 1))
+		if(lua_isnumber(L, 1) && original_top >= 1)
 		{
 			float value= FArg(1);
 			p->m_fPerspectiveTilt= -value;
 			p->m_fSkew= value;
 		}
-		if(lua_isnumber(L, 2))
+		if(lua_isnumber(L, 2) && original_top >= 2)
 		{
 			SetPerspectiveApproach(p, L, FArgGTEZero(L, 2));
 		}
+		OPTIONAL_RETURN_SELF(original_top);
 		return 2;
 	}
 
 	static int Space(T* p, lua_State* L)
 	{
-		DefaultNilArgs(L, 2);
+		int original_top= lua_gettop(L);
 		if((p->m_fSkew > 0.0f && p->m_fPerspectiveTilt > 0.0f) ||
 			(p->m_fSkew < 0.0f && p->m_fPerspectiveTilt < 0.0f))
 		{
@@ -1275,22 +1348,23 @@ public:
 			lua_pushnil(L);
 			lua_pushnil(L);
 		}
-		if(lua_isnumber(L, 1))
+		if(lua_isnumber(L, 1) && original_top >= 1)
 		{
 			float value= FArg(1);
 			p->m_fPerspectiveTilt= value;
 			p->m_fSkew= value;
 		}
-		if(lua_isnumber(L, 2))
+		if(lua_isnumber(L, 2) && original_top >= 2)
 		{
 			SetPerspectiveApproach(p, L, FArgGTEZero(L, 2));
 		}
+		OPTIONAL_RETURN_SELF(original_top);
 		return 2;
 	}
 
 	static int Hallway(T* p, lua_State* L)
 	{
-		DefaultNilArgs(L, 2);
+		int original_top= lua_gettop(L);
 		if(p->m_fSkew == 0.0f && p->m_fPerspectiveTilt < 0.0f)
 		{
 			lua_pushnumber(L, -p->m_fPerspectiveTilt);
@@ -1301,21 +1375,22 @@ public:
 			lua_pushnil(L);
 			lua_pushnil(L);
 		}
-		if(lua_isnumber(L, 1))
+		if(lua_isnumber(L, 1) && original_top >= 1)
 		{
 			p->m_fPerspectiveTilt= -FArg(1);
 			p->m_fSkew= 0;
 		}
-		if(lua_isnumber(L, 2))
+		if(lua_isnumber(L, 2) && original_top >= 2)
 		{
 			SetPerspectiveApproach(p, L, FArgGTEZero(L, 2));
 		}
+		OPTIONAL_RETURN_SELF(original_top);
 		return 2;
 	}
 	
 	static int Distant(T* p, lua_State* L)
 	{
-		DefaultNilArgs(L, 2);
+		int original_top= lua_gettop(L);
 		if(p->m_fSkew == 0.0f && p->m_fPerspectiveTilt > 0.0f)
 		{
 			lua_pushnumber(L, p->m_fPerspectiveTilt);
@@ -1326,15 +1401,16 @@ public:
 			lua_pushnil(L);
 			lua_pushnil(L);
 		}
-		if(lua_isnumber(L, 1))
+		if(lua_isnumber(L, 1) && original_top >= 1)
 		{
 			p->m_fPerspectiveTilt= FArg(1);
 			p->m_fSkew= 0;
 		}
-		if(lua_isnumber(L, 2))
+		if(lua_isnumber(L, 2) && original_top >= 2)
 		{
 			SetPerspectiveApproach(p, L, FArgGTEZero(L, 2));
 		}
+		OPTIONAL_RETURN_SELF(original_top);
 		return 2;
 	}
 
@@ -1343,7 +1419,7 @@ public:
 	static int GetReversePercentForColumn( T *p, lua_State *L )
 	{
 		const int colNum = IArg(1);
-		const int numColumns = GAMESTATE->GetCurrentStyle()->m_iColsPerPlayer;
+		const int numColumns = GAMESTATE->GetCurrentStyle(p->m_pn)->m_iColsPerPlayer;
 
 		// We don't want to go outside the bounds.
 		if(colNum < 0 || colNum > numColumns)
@@ -1449,6 +1525,7 @@ public:
 
 		ADD_METHOD(NoteSkin);
 		ADD_METHOD(FailSetting);
+		ADD_METHOD(MinTNSToHideNotes);
 
 		// Speed
 		ADD_METHOD( CMod );
